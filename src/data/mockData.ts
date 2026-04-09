@@ -1,0 +1,98 @@
+import type { WardrobeItem, OutfitCombo } from '@/types'
+
+export const mockItems: WardrobeItem[] = [
+  {
+    id: 's1', name: "Air Jordan 1 Retro High", category: 'shoes', brand: 'Nike',
+    color: 'Black Blue Orange', subtype: 'Sneakers', gender: 'Men', size: 'US 10', material: 'Leather / Nubuck',
+    image: '/images/shoes/jordan-1-bio-hack/538383_01.jpg.jpeg.webp',
+    images: [
+      '/images/shoes/jordan-1-bio-hack/538383_02.jpg.jpeg.webp',
+      '/images/shoes/jordan-1-bio-hack/538383_03.jpg.jpeg.webp',
+      '/images/shoes/jordan-1-bio-hack/538383_04.jpg.jpeg.webp',
+      '/images/shoes/jordan-1-bio-hack/538383_05.jpg.jpeg.webp',
+      '/images/shoes/jordan-1-bio-hack/538383_06.jpg.jpeg.webp',
+      '/images/shoes/jordan-1-bio-hack/538383_07.jpg.jpeg.webp',
+      '/images/shoes/jordan-1-bio-hack/538383_08.jpg.jpeg.webp',
+    ],
+    price: 460,
+    addedAt: '2025-02-01', tags: ['everyday', 'streetwear'],
+  },
+  {
+    id: 's2', name: "Dunk Low", category: 'shoes', brand: 'Nike',
+    color: 'Black White', subtype: 'Sneakers', gender: 'Men', size: 'US 10', material: 'Leather',
+    image: '/images/shoes/dunk-low-bw/719082_01.jpg.jpeg.webp',
+    images: [
+      '/images/shoes/dunk-low-bw/719082_02.jpg.jpeg.webp',
+      '/images/shoes/dunk-low-bw/719082_03.jpg.jpeg.webp',
+      '/images/shoes/dunk-low-bw/719082_04.jpg.jpeg.webp',
+      '/images/shoes/dunk-low-bw/719082_05.jpg.jpeg.webp',
+      '/images/shoes/dunk-low-bw/719082_06.jpg.jpeg.webp',
+      '/images/shoes/dunk-low-bw/719082_07.jpg.jpeg.webp',
+      '/images/shoes/dunk-low-bw/719082_08.jpg.jpeg.webp',
+    ],
+    price: 334,
+    addedAt: '2025-05-15', tags: ['casual', 'classic'],
+  },
+  {
+    id: 's3', name: '9060', category: 'shoes', brand: 'New Balance',
+    color: 'Black Grey', subtype: 'Sneakers', gender: 'Men', size: 'US 10', material: 'Suede / Mesh',
+    image: '/images/shoes/nb-9060-castlerock/1029570_01.jpg.jpeg.webp',
+    images: [
+      '/images/shoes/nb-9060-castlerock/1029570_02.jpg.jpeg.webp',
+      '/images/shoes/nb-9060-castlerock/1029570_03.jpg.jpeg.webp',
+      '/images/shoes/nb-9060-castlerock/1029570_04.jpg.jpeg.webp',
+      '/images/shoes/nb-9060-castlerock/1029570_05.jpg.jpeg.webp',
+      '/images/shoes/nb-9060-castlerock/1029570_06.jpg.jpeg.webp',
+      '/images/shoes/nb-9060-castlerock/1029570_07.jpg.jpeg.webp',
+      '/images/shoes/nb-9060-castlerock/1029570_08.jpg.jpeg.webp',
+    ],
+    price: 355,
+    addedAt: '2025-04-05', tags: ['casual', 'comfort'],
+  },
+  {
+    id: 's4', name: 'Samba ADV', category: 'shoes', brand: 'Adidas',
+    color: 'White Black Brown', subtype: 'Sneakers', gender: 'Men', size: 'US 10', material: 'Leather / Suede',
+    image: '/images/shoes/samba-adv-wbg/1003756_01.jpg.jpeg.webp',
+    images: [
+      '/images/shoes/samba-adv-wbg/1003756_02.jpg.jpeg.webp',
+      '/images/shoes/samba-adv-wbg/1003756_03.jpg.jpeg.webp',
+      '/images/shoes/samba-adv-wbg/1003756_04.jpg.jpeg.webp',
+      '/images/shoes/samba-adv-wbg/1003756_05.jpg.jpeg.webp',
+      '/images/shoes/samba-adv-wbg/1003756_06.jpg.jpeg.webp',
+      '/images/shoes/samba-adv-wbg/1003756_07.jpg.jpeg.webp',
+      '/images/shoes/samba-adv-wbg/1003756_08.jpg.jpeg.webp',
+    ],
+    price: 390,
+    addedAt: '2025-03-01', tags: ['everyday', 'classic'],
+  },
+  {
+    id: 's5', name: 'Ozelia', category: 'shoes', brand: 'Adidas',
+    color: 'Black', subtype: 'Sneakers', gender: 'Men', size: 'US 10', material: 'Mesh / Synthetic',
+    image: '/images/shoes/ozelia-black-carbon/806422_01.jpg.jpeg.webp',
+    images: [
+      '/images/shoes/ozelia-black-carbon/806422_02.jpg.jpeg.webp',
+      '/images/shoes/ozelia-black-carbon/806422_03.jpg.jpeg.webp',
+      '/images/shoes/ozelia-black-carbon/806422_04.jpg.jpeg.webp',
+    ],
+    price: 264,
+    addedAt: '2025-06-11', tags: ['running', 'casual', 'comfort'],
+  },
+  {
+    id: 't1', name: 'Racing Bomber Jacket', category: 'tops', brand: 'Civil Regime',
+    color: 'Cream Black Orange', subtype: 'Jackets', gender: 'Men', size: 'M', material: 'Polyester / Faux Leather',
+    image: '/images/jackets/0201460120005NEW_00_001.webp',
+    images: ['/images/jackets/0201460120005NEW_01_001.webp'],
+    price: 229,
+    addedAt: '2025-11-09', tags: ['statement', 'streetwear', 'layering'],
+  },
+  {
+    id: 'b1', name: 'Washed Straight Denim', category: 'bottoms', brand: 'Represent',
+    color: 'Grey', subtype: 'Jeans', gender: 'Men', size: '32', material: 'Cotton Denim',
+    image: '/images/jackets/0201460120005NEW_00_001.webp',
+    images: ['/images/jackets/0201460120005NEW_01_001.webp'],
+    price: 250,
+    addedAt: '2025-08-27', tags: ['everyday', 'casual', 'essential'],
+  },
+]
+
+export const mockSavedOutfits: OutfitCombo[] = []
