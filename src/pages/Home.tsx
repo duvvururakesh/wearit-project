@@ -70,7 +70,7 @@ function StoryStrip({
           onClick={() => onItemClick(item)}
           className="card-product-strip"
         >
-          <div className="card-product-strip-media bg-transparent">
+          <div className={`card-product-strip-media bg-transparent ${item.category === 'shoes' ? 'card-product-strip-media-shoe' : 'card-product-strip-media-apparel'}`}>
             <ProductImage
               src={item.image}
               alt={item.name}
@@ -97,47 +97,25 @@ function MiniItemMarquee({
   items: WardrobeItem[]
   onItemClick: (item: WardrobeItem) => void
 }) {
-  const [shuffled, setShuffled] = useState<WardrobeItem[]>([])
-
-  useEffect(() => {
-    if (items.length === 0) {
-      setShuffled([])
-      return
-    }
-
-    setShuffled([...items].sort(() => Math.random() - 0.5))
+  const gridItems = useMemo(() => {
+    if (items.length === 0) return []
+    const shuffled = [...items].sort(() => Math.random() - 0.5)
+    const target = 25
+    if (shuffled.length >= target) return shuffled.slice(0, target)
+    return Array.from({ length: target }, (_, index) => shuffled[index % shuffled.length])
   }, [items])
 
-  const cycleDuration = Math.max(items.length * 1.15, 12)
-
-  useEffect(() => {
-    if (items.length === 0) return
-
-    const timer = window.setInterval(() => {
-      setShuffled((current) => [...(current.length > 0 ? current : items)].sort(() => Math.random() - 0.5))
-    }, cycleDuration * 1000)
-
-    return () => window.clearInterval(timer)
-  }, [cycleDuration, items])
-
-  if (items.length === 0 || shuffled.length === 0) return null
-  const loopItems = [...shuffled, ...shuffled]
+  if (gridItems.length === 0) return null
 
   return (
-    <div className="w-full overflow-hidden">
-      <motion.div
-        key={shuffled.map((item) => item.id).join('-')}
-        className="flex items-end gap-2"
-        animate={{ x: ['0%', '-50%'] }}
-        transition={{ duration: cycleDuration, ease: 'linear', repeat: Infinity }}
-      >
-        {loopItems.map((item, index) => (
+    <div className="grid w-full grid-cols-5 gap-2">
+      {gridItems.map((item, index) => (
+        <div key={`${item.id}-mini-${index}`} className="flex items-center justify-center">
           <motion.button
-            key={`${item.id}-mini-${index}`}
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onItemClick(item)}
-            className="flex h-[84px] w-[84px] shrink-0 items-end justify-center"
+            className="flex aspect-square w-full items-end justify-center"
           >
             <ProductImage
               src={item.image}
@@ -147,8 +125,8 @@ function MiniItemMarquee({
               fit={item.category === 'shoes' ? 'shoe' : 'default'}
             />
           </motion.button>
-        ))}
-      </motion.div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -225,10 +203,10 @@ function BuilderStackPreview({
   }
 
   const placementByCategory: Record<WardrobeItem['category'], { left: string; top: string; width: string; height: string; zIndex: number; transform?: string }> = {
-    face: { left: '130px', top: '30px', width: '118px', height: '76px', zIndex: 4, transform: 'rotate(-7deg)' },
-    tops: { left: '18px', top: '64px', width: '164px', height: '124px', zIndex: 2 },
-    bottoms: { left: '146px', top: '104px', width: '138px', height: '156px', zIndex: 3 },
-    shoes: { left: '26px', top: '192px', width: '128px', height: '64px', zIndex: 5 },
+    face: { left: '120px', top: '30px', width: '118px', height: '76px', zIndex: 4, transform: 'rotate(-7deg)' },
+    tops: { left: '18px', top: '64px', width: '166px', height: '126px', zIndex: 2, transform: 'rotate(-3deg)' },
+    bottoms: { left: '134px', top: '104px', width: '145px', height: '163px', zIndex: 3, transform: 'rotate(3deg)' },
+    shoes: { left: '26px', top: '182px', width: '118px', height: '54px', zIndex: 5, transform: 'rotate(-5deg)' },
   }
 
   return (
@@ -239,7 +217,7 @@ function BuilderStackPreview({
       className="relative flex h-full w-full items-center justify-center overflow-hidden pt-4"
     >
       {stackItems.length > 0 ? (
-        <div className="relative h-[272px] w-[296px] translate-y-3">
+        <div className="relative h-[272px] w-[296px] translate-x-[-12px] translate-y-3">
           {stackItems.slice(0, 4).map((item, index) => (
             <div
               key={`${item.id}-stack-${index}`}
@@ -278,7 +256,7 @@ export default function Home() {
   const shoeWall = useMemo(() => {
     if (shoes.length === 0) return []
     const columns = 12
-    const total = 48
+    const total = 84
     const result: WardrobeItem[] = []
 
     for (let index = 0; index < total; index++) {
@@ -316,7 +294,7 @@ export default function Home() {
   }, [items])
   const shoeRows = useMemo(() => {
     if (shoeWall.length === 0) return []
-    return Array.from({ length: 4 }, (_, rowIndex) => shoeWall.slice(rowIndex * 12, rowIndex * 12 + 12))
+    return Array.from({ length: 7 }, (_, rowIndex) => shoeWall.slice(rowIndex * 12, rowIndex * 12 + 12))
   }, [shoeWall])
   const featuredBrands = useMemo(() => {
     const brands = Array.from(new Set(items.map((item) => item.brand)))
@@ -334,59 +312,55 @@ export default function Home() {
 
   return (
     <div className="h-[calc(100vh-96px)] overflow-y-auto snap-y snap-mandatory md:h-[calc(100vh-56px)]">
-      <section className="page-header snap-start">
-        <div className="grid min-h-[calc(100vh-96px)] lg:grid-cols-[1.15fr_0.85fr] md:min-h-[calc(100vh-56px)]">
-          <div className="page-frame flex flex-col justify-center border-b border-border pb-10 pt-4 lg:border-b-0 lg:border-r lg:pb-16 lg:pt-6">
-            <p className="type-label text-text-muted">Closet Archive</p>
-            <h1 className="type-display mt-4 max-w-[12ch] text-text-primary">
-              Your{' '}
-              <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => nav('/closet')}
-                className="inline-block bg-text-primary px-2 py-0.5 text-bg"
-              >
-                closet
-              </motion.button>{' '}
-              in one place.
-            </h1>
+      <section className="page-header snap-start overflow-hidden">
+        <div className="grid h-[calc(100vh-96px)] grid-cols-1 gap-px border-border bg-border md:h-[calc(100vh-56px)] xl:grid-cols-4 xl:grid-rows-2">
+          <div className="page-frame flex min-h-0 flex-col justify-center overflow-hidden bg-bg pb-10 pt-4 xl:col-span-2 xl:row-span-1 xl:pb-16 xl:pt-6">
+            <p className="type-label text-text-muted">CLOSET ARCHIVE</p>
+            <h1 className="type-display mt-4 max-w-[12ch] text-text-primary">Your closet in one place.</h1>
             <p className="type-body-lg mt-4 max-w-xl text-text-secondary">
               Browse your wardrobe through sections, outfit building, quick filtering, and detail pages built from the pieces you actually own.
             </p>
             <div className="mt-8">
               <button
                 onClick={() => nav('/add?category=tops')}
-                className="type-button-md inline-flex items-center gap-2 whitespace-nowrap button-secondary text-text-primary"
+                className="type-button-md inline-flex items-center gap-2 whitespace-nowrap text-text-primary"
               >
-                Add Apparel <ChevronRight size={18} />
+                Add Apparel:
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-px border-border bg-border">
-            <div className="flex h-full flex-col bg-card px-6 pb-8 pt-4">
+          <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card px-6 pb-8 pt-4 xl:col-start-3 xl:row-start-1">
               <p className="type-label text-light-secondary">Items</p>
               <p className="type-h1 mt-3 text-text-dark">{items.length}</p>
-              <div className="mt-3 flex flex-1 items-center justify-center">
+              <div className="mt-4 flex flex-1 items-start justify-center overflow-hidden">
                 <MiniItemMarquee items={itemMarqueeItems} onItemClick={goItem} />
               </div>
             </div>
-            <div className="flex h-full flex-col bg-card px-6 pb-8 pt-4">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card px-6 pb-8 pt-4 xl:col-start-4 xl:row-start-1">
               <p className="type-label text-light-secondary">Spotlight</p>
               <p className="type-h3 mt-4 text-text-dark">{spotlight?.name ?? 'Closet taking shape'}</p>
               <div className="mt-3 flex flex-1 items-center justify-center">
                 <ItemSlideshow item={spotlight} onClick={goItem} />
               </div>
             </div>
-            <div className="flex h-full flex-col bg-card px-6 pb-8 pt-4">
+            <div className="hidden bg-card xl:block xl:col-span-2 xl:row-start-2" />
+            <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card px-6 pb-8 pt-4 xl:col-start-3 xl:row-start-2">
               <p className="type-label text-light-secondary">Latest Add</p>
               <p className="type-h3 mt-4 text-text-dark">{latestAdd?.name ?? 'None yet'}</p>
               <div className="mt-3 flex flex-1 items-center justify-center">
                 <ItemSlideshow item={latestAdd} onClick={goItem} whiteStage slideshow={false} />
               </div>
             </div>
-            <div className="flex h-full flex-col bg-card px-6 pb-8 pt-4">
-              <p className="type-label text-light-secondary">Builder</p>
+            <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card px-6 pb-8 pt-4 xl:col-start-4 xl:row-start-2">
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => nav('/builder')}
+                className="type-label w-fit text-left text-light-secondary"
+              >
+                Outfit Builder &gt;
+              </motion.button>
               <p className="type-h3 mt-4 text-text-dark">{featuredOutfit?.name ?? 'Open builder'}</p>
               <div className="mt-3 flex flex-1 items-center justify-center overflow-hidden">
                 <BuilderStackPreview
@@ -400,18 +374,11 @@ export default function Home() {
                 />
               </div>
             </div>
-          </div>
         </div>
       </section>
 
       {shoeRows.length > 0 && (
-        <section className="page-frame flex min-h-[calc(100vh-96px)] snap-start flex-col justify-center py-8 md:min-h-[calc(100vh-56px)]">
-          <button
-            onClick={() => nav('/closet?category=shoes')}
-            className="type-button-md inline-flex items-center gap-2 whitespace-nowrap pb-6 text-text-primary"
-          >
-            Sneakers <ChevronRight size={18} />
-          </button>
+        <section className="flex min-h-[calc(100vh-96px)] snap-start flex-col justify-center bg-card py-8 md:min-h-[calc(100vh-56px)]">
           <div className="space-y-4">
             {shoeRows.map((row, index) => (
               <ShoeMarqueeRow
