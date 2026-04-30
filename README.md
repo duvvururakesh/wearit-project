@@ -71,3 +71,88 @@ export default defineConfig([
   },
 ])
 ```
+
+## Mannequin Backend Scaffold
+
+This repo now includes an async mannequin service scaffold:
+
+- API: `backend/app/main.py` (FastAPI)
+- Queue: Redis + RQ
+- Worker: `backend/app/worker.py`
+- Docker Compose: `/docker-compose.yml`
+
+### Start backend services (recommended on Apple Silicon)
+
+```bash
+npm run backend:up
+```
+
+Then run the worker on host macOS so Hugging Face generation can use MPS:
+
+```bash
+npm run backend:worker:host
+```
+
+### Optional: run everything in Docker (CPU/debug)
+
+```bash
+npm run backend:up:docker-worker
+```
+
+### Stop backend services
+
+```bash
+npm run backend:down
+```
+
+### Endpoints
+
+- `POST /api/v1/mannequin/jobs`
+- `GET /api/v1/mannequin/jobs/:jobId`
+- `GET /api/v1/health`
+- static outputs: `/outputs/...`
+
+The Vite dev server proxies `/api` and `/outputs` to `http://localhost:8000`, so the current `3D Mannequin` page can call the backend without additional frontend changes.
+
+### Generator modes
+
+Default mode is local Hugging Face generation with Ollama prompt refinement:
+
+- `GENERATOR_MODE=hf_local`
+- `OLLAMA_ENABLED=true`
+- `OLLAMA_BASE_URL=http://127.0.0.1:11434`
+- `OLLAMA_MODEL=qwen2.5:7b-instruct`
+- `HF_MODEL_ID=diffusers/sdxl-instructpix2pix-768`
+- `HF_DEVICE=mps` (or `cpu`)
+- `HF_NUM_INFERENCE_STEPS=30`
+- `HF_GUIDANCE_SCALE=7.0`
+- `HF_IMAGE_STRENGTH=0.45`
+- `MANNEQUIN_TEMPLATE_IMAGE=backend/assets/egmusc.webp` (host) or `/app/assets/egmusc.webp` (docker)
+
+Worker flow for `hf_local`:
+1. Build deterministic template prompt from request payload.
+2. Refine prompt via Ollama (if available).
+3. Run local Hugging Face img2img generation.
+4. If HF fails, fallback to local renderer.
+5. Save preview + manifest.
+
+### Supported generator modes
+
+- `GENERATOR_MODE=hf_local` (Ollama + Hugging Face local generation)
+- `GENERATOR_MODE=openai_image` (optional OpenAI image generation + local fallbacks)
+- `GENERATOR_MODE=local` (existing local renderer only)
+
+### Hugging Face model options (tested candidates)
+
+- `diffusers/sdxl-instructpix2pix-768` (default; instruction-tuned img2img)
+- `stabilityai/stable-diffusion-xl-base-1.0` (strong general SDXL base)
+- `timbrooks/instruct-pix2pix` (lighter instruct-pix2pix baseline)
+
+### Manifest metadata
+
+`/outputs/<jobId>/model.json` now includes:
+- `generationMode` (`hf_local`, `openai_image`, or `local`)
+- `promptSource` (`ollama` or `template`, when applicable)
+- `fallbackReason` (present when provider falls back to local renderer)
+
+Security note: never commit API keys to git. Use local `.env`/shell environment only.

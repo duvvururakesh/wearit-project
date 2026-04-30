@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Camera, Sparkles, Upload, X } from 'lucide-react'
 import { useWardrobe } from '@/hooks/useWardrobe'
 import { extractBasicColors, normalizeColorLabel } from '@/lib/colors'
 import {
   ACCESSORY_FUNCTION_OPTIONS,
+  addCustomSubcategory,
   BAG_CAPACITY_OPTIONS,
   CONDITION_OPTIONS,
   FIT_OPTIONS,
@@ -26,11 +27,15 @@ import {
   WATCH_MOVEMENT_OPTIONS,
 } from '@/lib/taxonomy'
 import { processImageSource, type ImageProcessingMode } from '@/lib/imageProcessing'
+import { generateMannequinImage, mannequinCategoryFromRoot } from '@/lib/mannequinClient'
 import ProductImage from '@/components/ProductImage'
 import SizeSelector from '@/components/SizeSelector'
 import type { Category } from '@/types'
 
 type RootCategory = 'apparel' | 'shoes' | 'accessories'
+
+const STUDIO_3D_PROMPT =
+  "Transform this photo into a photorealistic studio shot in the 1:1 aspect ratio, reconstructed as a high-volume 3D form as if worn by a male invisible body, captured from a front perspective. Preserve every original product detail exactly as shown: all colors, patterns, logos, stitching, textures, fabric types, seams, labels, and design elements must remain completely unchanged with nothing added or removed. The fabric is stretched taut across the chest, shoulders, and limbs, showing clear structural tension and smooth, rounded anatomical curves appropriate to the body type. Fine surface wrinkles are reduced but original details are preserved, replaced by a sleek, filled-out appearance with only deep, natural folds at the joints to emphasize the internal natural mass. Maintain the exact same garment version without any alterations to its original design or features. Keep the original fabric texture and detail in high fidelity. The item is isolated against a seamless white studio background with soft global illumination that highlights the smooth, volumetric surfaces and casts a soft contact shadow beneath."
 
 const mergeOptions = (...groups: (string | undefined)[][]) =>
   Array.from(
@@ -95,9 +100,170 @@ function normalizeSingleColor(value: string) {
 
 function getImageProcessingMode(root: RootCategory, section: string): ImageProcessingMode {
   if (root === 'apparel') {
+    if (section === 'Bottoms') return 'bottoms'
     return section === 'Outerwear' ? 'jacket' : 'apparel'
   }
   return 'strict'
+}
+
+function SingleSelectCards({
+  title,
+  options,
+  selected,
+  onSelect,
+  error,
+  customValue,
+  setCustomValue,
+  onAddCustom,
+  allowAdd = false,
+  hideLabel = false,
+}: {
+  title: string
+  options: readonly string[] | string[]
+  selected: string
+  onSelect: (value: string) => void
+  error?: string
+  customValue?: string
+  setCustomValue?: (value: string) => void
+  onAddCustom?: (value: string) => void
+  allowAdd?: boolean
+  hideLabel?: boolean
+}) {
+  return (
+    <div className="field-stack">
+      {!hideLabel && <label className="type-label text-light-secondary">{title}</label>}
+      <div className="option-grid mt-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onSelect(option)}
+            className={`type-button-sm option-card-light ${selected === option ? 'is-selected' : ''}`}
+          >
+            {option}
+          </button>
+        ))}
+        {allowAdd && setCustomValue && onAddCustom && (
+          customValue && customValue !== '' ? (
+            <input
+              autoFocus
+              value={customValue === ' ' ? '' : customValue}
+              onChange={(e) => setCustomValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const next = (customValue === ' ' ? '' : customValue).trim()
+                  if (!next) return
+                  onAddCustom(next)
+                }
+              }}
+              onBlur={() => {
+                const next = (customValue === ' ' ? '' : customValue).trim()
+                if (!next) {
+                  setCustomValue('')
+                  return
+                }
+                onAddCustom(next)
+              }}
+              className="type-button-sm field-input-light option-card-add-input"
+              placeholder="+"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setCustomValue(' ')}
+              className="type-button-sm option-card-light option-card-add"
+            >
+              +
+            </button>
+          )
+        )}
+      </div>
+      {error && <p className="field-error-text">{error}</p>}
+    </div>
+  )
+}
+
+function MultiSelectCards({
+  title,
+  options,
+  selected,
+  onToggle,
+  hideLabel = false,
+}: {
+  title: string
+  options: readonly string[] | string[]
+  selected: string[]
+  onToggle: (value: string) => void
+  hideLabel?: boolean
+}) {
+  return (
+    <div className="field-stack">
+      {!hideLabel && <label className="type-label text-light-secondary">{title}</label>}
+      <div className="option-grid mt-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onToggle(option)}
+            className={`type-button-sm option-card-light ${selected.includes(option) ? 'is-selected' : ''}`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ColorSwatchCards({
+  title,
+  selected,
+  onSelect,
+  error,
+}: {
+  title: string
+  selected: string
+  onSelect: (value: string) => void
+  error?: string
+}) {
+  return (
+    <div className="field-stack">
+      <label className="type-label text-light-secondary">{title}</label>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {BASIC_COLOR_OPTIONS.map((option) => {
+          const isSelected = normalizeColorLabel(selected) === option
+          const background = COLOR_SWATCH_MAP[option]
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onSelect(option)}
+              aria-label={option}
+              className={`type-button-sm flex h-[44px] w-[44px] items-center justify-center border p-0 ${
+                isSelected ? 'border-text-dark shadow-[0_0_0_1px_rgba(21,21,21,0.12)]' : 'border-light hover:border-light-strong'
+              }`}
+              style={{ background }}
+            >
+              {option === 'White' ? <div className="h-full w-full border border-black/10" /> : null}
+            </button>
+          )
+        })}
+      </div>
+      {error && <p className="field-error-text">{error}</p>}
+    </div>
+  )
+}
+
+function FieldSection({
+  children,
+}: {
+  children: ReactNode
+}) {
+  return (
+    <section className="field-section">
+      <div className="field-section-body">{children}</div>
+    </section>
+  )
 }
 
 export default function AddItem() {
@@ -118,6 +284,7 @@ export default function AddItem() {
   const [preview, setPreview] = useState<string | null>(null)
   const [extraPreviews, setExtraPreviews] = useState<string[]>([])
   const [processing, setProcessing] = useState(false)
+  const [useStudio3DPrompt, setUseStudio3DPrompt] = useState(true)
 
   const [name, setName] = useState('')
   const [brand, setBrand] = useState('')
@@ -148,23 +315,12 @@ export default function AddItem() {
 
   const [customBrand, setCustomBrand] = useState('')
   const [customSubcategory, setCustomSubcategory] = useState('')
-  const [customDetailType, setCustomDetailType] = useState('')
   const [customMaterial, setCustomMaterial] = useState('')
   const [customStyleTag, setCustomStyleTag] = useState('')
-  const [customPattern, setCustomPattern] = useState('')
-  const [customClosure, setCustomClosure] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const node = getNodeForSelection(root, section, subcategory)
   const resolvedCategory: Category = node?.category ?? fallbackCategoryFromRoot(root)
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = previousOverflow
-    }
-  }, [])
 
   useEffect(() => {
     const nextSection = getSections(root)[0] ?? ''
@@ -174,6 +330,7 @@ export default function AddItem() {
     setSubcategory(nextSubcategory)
     setDetailType(nextDetailType)
     setSize('')
+    setCustomSubcategory('')
   }, [root])
 
   useEffect(() => {
@@ -182,6 +339,7 @@ export default function AddItem() {
     setSubcategory(nextSubcategory)
     setDetailType(nextDetailType)
     setSize('')
+    setCustomSubcategory('')
   }, [root, section])
 
   useEffect(() => {
@@ -215,10 +373,24 @@ export default function AddItem() {
     if (list.length === 0) return
     setProcessing(true)
     const processingMode = getImageProcessingMode(root, section)
+    const mannequinCategory = mannequinCategoryFromRoot(root, section)
+    const fallbackPrompt = detailType || subcategory || name.trim() || undefined
+    const mannequinPrompt = useStudio3DPrompt ? STUDIO_3D_PROMPT : fallbackPrompt
     const loaded = (await Promise.all(
       list.map(async (file) => {
         const raw = await readFile(file)
         if (!raw) return ''
+        if (mannequinCategory) {
+          try {
+            return await generateMannequinImage({
+              category: mannequinCategory,
+              imageDataUrl: raw,
+              prompt: mannequinPrompt,
+            })
+          } catch {
+            // If backend is unavailable or generation fails, keep existing local processing behavior.
+          }
+        }
         try {
           return await processImageSource(raw, processingMode)
         } catch {
@@ -258,14 +430,15 @@ export default function AddItem() {
   }
 
   const normalizedPrimary = normalizeSingleColor(primaryColor || 'Multi')
-  const handleSave = () => {
+  const handleSave = async () => {
     const nextErrors: Record<string, string> = {}
     if (!preview) nextErrors.preview = 'Add a primary photo.'
     if (!name.trim()) nextErrors.name = 'Name is required.'
     if (!brand.trim()) nextErrors.brand = 'Brand is required.'
+    if (!section.trim()) nextErrors.section = 'Section is required.'
     if (!subcategory.trim()) nextErrors.subcategory = 'Subcategory is required.'
+    if (!detailType.trim()) nextErrors.detailType = 'Type is required.'
     if (!primaryColor.trim()) nextErrors.primaryColor = 'Primary color is required.'
-    if (!price.trim()) nextErrors.price = 'Price is required.'
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors)
@@ -273,9 +446,9 @@ export default function AddItem() {
     }
 
     const finalName = name.trim()
-    const finalStyleTags = styleTags.length > 0 ? styleTags : STYLE_TAG_OPTIONS.filter((tag) => tag.toLowerCase().includes(root === 'shoes' ? 'sport' : root === 'accessories' ? 'statement' : 'classic')).slice(0, 2)
+    const finalStyleTags = styleTags
 
-    addItem({
+    await addItem({
       id: `custom-${Date.now()}`,
       name: finalName,
       brand: brand.trim(),
@@ -300,7 +473,6 @@ export default function AddItem() {
       occasionTags,
       styleTags: finalStyleTags,
       favoriteItem,
-      modelName: root === 'shoes' ? name.trim() : undefined,
       shoeCategory: root === 'shoes' ? subcategory : undefined,
       closure: root === 'shoes' ? closure || undefined : undefined,
       usageType: root === 'shoes' ? usageType || undefined : undefined,
@@ -316,152 +488,8 @@ export default function AddItem() {
     nav('/closet')
   }
 
-  const SingleSelectCards = ({
-    title,
-    options,
-    selected,
-    onSelect,
-    error,
-    customValue,
-    setCustomValue,
-    onAddCustom,
-    allowAdd = false,
-  }: {
-    title: string
-    options: readonly string[] | string[]
-    selected: string
-    onSelect: (value: string) => void
-    error?: string
-    customValue?: string
-    setCustomValue?: (value: string) => void
-    onAddCustom?: (value: string) => void
-    allowAdd?: boolean
-  }) => (
-    <div className="field-stack">
-      <label className="type-label text-light-secondary">{title}</label>
-      <div className="option-grid mt-2">
-        {options.map((option) => (
-          <button
-            key={option}
-            type="button"
-            onClick={() => {
-              onSelect(option)
-              clearError(title.toLowerCase())
-            }}
-            className={`type-button-sm option-card-light ${selected === option ? 'is-selected' : ''}`}
-          >
-            {option}
-          </button>
-        ))}
-        {allowAdd && setCustomValue && onAddCustom && (
-          customValue && customValue !== '' ? (
-            <input
-              autoFocus
-              value={customValue === ' ' ? '' : customValue}
-              onChange={(e) => setCustomValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const next = (customValue === ' ' ? '' : customValue).trim()
-                  if (!next) return
-                  onAddCustom(next)
-                }
-              }}
-              onBlur={() => {
-                const next = (customValue === ' ' ? '' : customValue).trim()
-                if (!next) {
-                  setCustomValue('')
-                  return
-                }
-                onAddCustom(next)
-              }}
-              className="type-button-sm field-input-light h-11 text-center"
-              placeholder="+"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setCustomValue(' ')}
-              className="type-button-sm option-card-light"
-            >
-              +
-            </button>
-          )
-        )}
-      </div>
-      {error && <p className="field-error-text">{error}</p>}
-    </div>
-  )
-
-  const MultiSelectCards = ({
-    title,
-    options,
-    selected,
-    onToggle,
-  }: {
-    title: string
-    options: readonly string[] | string[]
-    selected: string[]
-    onToggle: (value: string) => void
-  }) => (
-    <div className="field-stack">
-      <label className="type-label text-light-secondary">{title}</label>
-      <div className="option-grid mt-2">
-        {options.map((option) => (
-          <button
-            key={option}
-            type="button"
-            onClick={() => onToggle(option)}
-            className={`type-button-sm option-card-light ${selected.includes(option) ? 'is-selected' : ''}`}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-
-  const ColorSwatchCards = ({
-    title,
-    selected,
-    onSelect,
-    error,
-  }: {
-    title: string
-    selected: string
-    onSelect: (value: string) => void
-    error?: string
-  }) => (
-    <div className="field-stack">
-      <label className="type-label text-light-secondary">{title}</label>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {BASIC_COLOR_OPTIONS.map((option) => {
-          const isSelected = normalizeColorLabel(selected) === option
-          const background = COLOR_SWATCH_MAP[option]
-          return (
-            <button
-              key={option}
-              type="button"
-              onClick={() => {
-                onSelect(option)
-                clearError('primaryColor')
-              }}
-              aria-label={option}
-              className={`type-button-sm flex h-[42px] w-[42px] items-center justify-center border p-0 ${
-                isSelected ? 'border-text-dark shadow-[0_0_0_1px_rgba(21,21,21,0.12)]' : 'border-light hover:border-light-strong'
-              }`}
-              style={{ background }}
-            >
-              {option === 'White' ? <div className="h-full w-full border border-black/10" /> : null}
-            </button>
-          )
-        })}
-      </div>
-      {error && <p className="field-error-text">{error}</p>}
-    </div>
-  )
-
   return (
-    <div className="h-[calc(100vh-96px)] overflow-hidden bg-card text-text-dark md:h-[calc(100vh-56px)]">
+    <div className="page-shell-workstation app-viewport app-viewport-lock add-item-shell">
       <input
         ref={fileRef}
         type="file"
@@ -485,23 +513,22 @@ export default function AddItem() {
         }}
       />
 
-      <div className="flex h-full flex-col">
-        <div className="page-frame flex items-center justify-between border-b border-light-soft py-3">
-          <div className="type-caption flex items-center gap-3 text-light-secondary">
-            <button onClick={() => nav(-1)} className="type-button-sm button-ghost text-light-secondary">
-              Back
-            </button>
-            <span>Add Piece</span>
-          </div>
-          <button onClick={handleSave} className="type-button-sm button-primary">
-            Save
-          </button>
-        </div>
+      <div className="add-item-content h-full min-h-0 overflow-hidden">
+        <div className="add-item-grid grid h-full min-h-0 lg:grid-cols-[minmax(0,1fr)_390px]">
+          <section className="add-item-left-column min-h-0 border-b border-light-soft lg:border-b-0 lg:border-r lg:border-light-soft">
+            <div className="page-frame add-item-breadcrumb-row">
+              <button onClick={() => nav('/')} className="type-button-sm button-ghost text-light-secondary">
+                Home
+              </button>
+              <span className="type-caption text-light-muted">/</span>
+              <button onClick={() => nav('/add')} className="type-button-sm button-ghost text-light-secondary">
+                Add Item
+              </button>
+            </div>
 
-        <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_390px]">
-          <section className="flex min-h-0 flex-col border-b border-light-soft lg:border-b-0 lg:border-r lg:border-light-soft">
-            <div className="relative flex min-h-0 flex-1 items-center justify-center px-6 py-6">
-              <div className="media-canvas media-canvas-dark relative h-full w-full max-w-[520px] radius-xl border border-border bg-surface">
+            <div className="add-item-media-column min-h-0">
+              <div className="add-item-media-stage relative flex min-h-0 flex-1 items-center justify-center">
+                <div className="add-item-media-canvas media-canvas media-canvas-dark relative h-full w-full max-w-[400px] radius-xl border border-border bg-surface">
                 {preview ? (
                   <ProductImage
                     src={preview}
@@ -513,7 +540,7 @@ export default function AddItem() {
                 ) : (
                   <button type="button" onClick={() => fileRef.current?.click()} className="flex h-full w-full flex-col items-center justify-center gap-4 text-center">
                     <div className="radius-full flex h-16 w-16 items-center justify-center bg-bg">
-                      <Camera size={26} className="text-text-muted" />
+                      <Camera size={24} className="text-text-muted" />
                     </div>
                     <div>
                       <p className="type-h4 text-text-primary">Tap to upload photo</p>
@@ -532,271 +559,319 @@ export default function AddItem() {
 
                 {preview && (
                   <button type="button" onClick={() => { setPreview(null); setExtraPreviews([]) }} className="button-icon absolute right-3 top-3 radius-full bg-bg/80">
-                    <X size={12} className="text-text-primary" />
+                    <X size={14} className="text-text-primary" />
                   </button>
                 )}
-              </div>
-            </div>
-
-            <div className="border-t border-light-soft px-6 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="type-label text-light-secondary">Views</p>
-                  {errors.preview && <p className="field-error-text mt-1">{errors.preview}</p>}
-                </div>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => fileRef.current?.click()} className="type-button-sm button-secondary">
-                    <Upload size={14} />
-                    {preview ? 'Replace' : 'Choose Photo'}
-                  </button>
-                  <button type="button" onClick={() => moreFileRef.current?.click()} className="type-button-sm button-secondary" disabled={!preview}>
-                    Add More
-                  </button>
                 </div>
               </div>
 
-              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                {preview && (
-                  <div className="media-thumb radius-md border border-light bg-card">
-                    <ProductImage src={preview} alt="" className={root === 'shoes' ? '' : 'h-full w-full object-contain'} mode={getImageProcessingMode(root, section)} fit={root === 'shoes' ? 'shoe' : 'default'} />
+              <div className="add-item-media-band border-t border-light-soft px-6 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="type-label text-light-secondary">Views</p>
+                    {errors.preview && <p className="field-error-text mt-1">{errors.preview}</p>}
                   </div>
-                )}
-                {extraPreviews.map((image, index) => (
-                  <div key={`${image}-${index}`} className="space-y-1.5">
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => fileRef.current?.click()} className="type-button-sm button-secondary">
+                      <Upload size={14} />
+                      {preview ? 'Replace' : 'Choose Photo'}
+                    </button>
+                    <button type="button" onClick={() => moreFileRef.current?.click()} className="type-button-sm button-secondary" disabled={!preview}>
+                      Add More
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <p className="type-caption text-light-secondary">Make it 3D?</p>
+                  <button
+                    type="button"
+                    onClick={() => setUseStudio3DPrompt((current) => !current)}
+                    className={`type-button-sm option-card-light ${useStudio3DPrompt ? 'is-selected' : ''}`}
+                    aria-pressed={useStudio3DPrompt}
+                  >
+                    {useStudio3DPrompt ? 'On' : 'Off'}
+                  </button>
+                </div>
+
+                <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                  {preview && (
                     <div className="media-thumb radius-md border border-light bg-card">
-                      <ProductImage src={image} alt="" className={root === 'shoes' ? '' : 'h-full w-full object-contain'} mode={getImageProcessingMode(root, section)} fit={root === 'shoes' ? 'shoe' : 'default'} />
+                      <ProductImage src={preview} alt="" className={root === 'shoes' ? '' : 'h-full w-full object-contain'} mode={getImageProcessingMode(root, section)} fit={root === 'shoes' ? 'shoe' : 'default'} />
                     </div>
-                    <div className="flex gap-1.5">
-                      <button type="button" onClick={() => moveExtraPreview(index, -1)} className="type-button-sm button-light flex-1">Up</button>
-                      <button type="button" onClick={() => moveExtraPreview(index, 1)} className="type-button-sm button-light flex-1">Down</button>
+                  )}
+                  {extraPreviews.map((image, index) => (
+                    <div key={`${image}-${index}`} className="space-y-1.5">
+                      <div className="media-thumb radius-md border border-light bg-card">
+                        <ProductImage src={image} alt="" className={root === 'shoes' ? '' : 'h-full w-full object-contain'} mode={getImageProcessingMode(root, section)} fit={root === 'shoes' ? 'shoe' : 'default'} />
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button type="button" onClick={() => moveExtraPreview(index, -1)} className="type-button-sm button-light flex-1">Up</button>
+                        <button type="button" onClick={() => moveExtraPreview(index, 1)} className="type-button-sm button-light flex-1">Down</button>
+                      </div>
+                      <button type="button" onClick={() => removeExtraPreview(index)} className="type-button-sm button-danger w-full">Delete</button>
                     </div>
-                    <button type="button" onClick={() => removeExtraPreview(index)} className="type-button-sm button-danger w-full">Delete</button>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </section>
 
-          <aside className="min-h-0 overflow-y-auto bg-card">
-            <div className="drawer-header">
-              <p className="type-label text-light-strong">Details</p>
+          <aside className="add-item-detail-drawer min-h-0 bg-card">
+            <div className="drawer-header add-item-drawer-header">
+              <h2 className="type-h4 text-text-dark">Details</h2>
+              <button onClick={handleSave} className="type-button-sm button-primary">
+                Save
+              </button>
             </div>
 
-            <div className="drawer-body">
-              <SingleSelectCards
-                title="Closet Area"
-                options={getRootOptions().map((entry) => entry.label)}
-                selected={getRootOptions().find((entry) => entry.key === root)?.label ?? 'Apparel'}
-                onSelect={(value) => {
-                  const next = getRootOptions().find((entry) => entry.label === value)?.key ?? 'apparel'
-                  setRoot(next)
-                }}
-              />
-
-              <SingleSelectCards title="Section" options={getSections(root)} selected={section} onSelect={setSection} />
-              <SingleSelectCards
-                title="Subcategory"
-                options={getSubcategories(root, section)}
-                selected={subcategory}
-                onSelect={setSubcategory}
-                error={errors.subcategory}
-                allowAdd
-                customValue={customSubcategory}
-                setCustomValue={setCustomSubcategory}
-                onAddCustom={(value) => {
-                  setSubcategory(value)
-                  setCustomSubcategory('')
-                  clearError('subcategory')
-                }}
-              />
-              <SingleSelectCards
-                title="Type"
-                options={getDetailTypes(root, section, subcategory)}
-                selected={detailType}
-                onSelect={setDetailType}
-                allowAdd
-                customValue={customDetailType}
-                setCustomValue={setCustomDetailType}
-                onAddCustom={(value) => {
-                  setDetailType(value)
-                  setCustomDetailType('')
-                }}
-              />
-
-              <div className="field-stack">
-                <label className="type-label text-light-secondary">Name</label>
-                <input
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value)
-                    clearError('name')
+            <div className="drawer-body add-item-form min-h-0 flex-1 overflow-y-auto">
+              <FieldSection>
+                <SingleSelectCards
+                  title="Category"
+                  options={getRootOptions().map((entry) => entry.label)}
+                  selected={getRootOptions().find((entry) => entry.key === root)?.label ?? 'Apparel'}
+                  onSelect={(value) => {
+                    const next = getRootOptions().find((entry) => entry.label === value)?.key ?? 'apparel'
+                    setRoot(next)
                   }}
-                  placeholder="Item name"
-                  className={`type-body-md field-input-light ${errors.name ? 'is-error' : ''}`}
                 />
-                {errors.name && <p className="field-error-text">{errors.name}</p>}
-              </div>
+                <SingleSelectCards
+                  title="Section"
+                  options={getSections(root)}
+                  selected={section}
+                  onSelect={(value) => {
+                    setSection(value)
+                    clearError('section')
+                  }}
+                  error={errors.section}
+                />
+                <SingleSelectCards
+                  title="Subcategory"
+                  options={getSubcategories(root, section)}
+                  selected={subcategory}
+                  onSelect={(value) => {
+                    setSubcategory(value)
+                    clearError('subcategory')
+                  }}
+                  error={errors.subcategory}
+                  allowAdd
+                  customValue={customSubcategory}
+                  setCustomValue={setCustomSubcategory}
+                  onAddCustom={(value) => {
+                    addCustomSubcategory(root, section, value)
+                    setSubcategory(value)
+                    setCustomSubcategory('')
+                    clearError('subcategory')
+                  }}
+                />
+                <SingleSelectCards
+                  title="Type"
+                  options={getDetailTypes(root, section, subcategory)}
+                  selected={detailType}
+                  onSelect={(value) => {
+                    setDetailType(value)
+                    clearError('detailType')
+                  }}
+                  error={errors.detailType}
+                />
+              </FieldSection>
 
-              <SingleSelectCards
-                title="Brand"
-                options={brandOptions}
-                selected={brand}
-                onSelect={(value) => { setBrand(value); clearError('brand') }}
-                error={errors.brand}
-                allowAdd
-                customValue={customBrand}
-                setCustomValue={setCustomBrand}
-                onAddCustom={(value) => {
-                  setBrand(value)
-                  setCustomBrand('')
-                  clearError('brand')
-                }}
-              />
-
-              <SingleSelectCards title="Gender" options={GENDER_OPTIONS} selected={gender} onSelect={setGender} />
-
-              <SizeSelector category={resolvedCategory} subtype={subcategory} size={size} onChange={setSize} />
-
-              <ColorSwatchCards
-                title="Primary Color"
-                selected={normalizeColorLabel(primaryColor)}
-                onSelect={(value) => { setPrimaryColor(value); clearError('primaryColor') }}
-                error={errors.primaryColor}
-              />
-
-              <SingleSelectCards
-                title="Pattern"
-                options={PATTERN_OPTIONS}
-                selected={pattern}
-                onSelect={setPattern}
-                allowAdd
-                customValue={customPattern}
-                setCustomValue={setCustomPattern}
-                onAddCustom={(value) => {
-                  setPattern(value)
-                  setCustomPattern('')
-                }}
-              />
-
-              <SingleSelectCards
-                title="Material"
-                options={materialOptions}
-                selected={material}
-                onSelect={setMaterial}
-                allowAdd
-                customValue={customMaterial}
-                setCustomValue={setCustomMaterial}
-                onAddCustom={(value) => {
-                  setMaterial(value)
-                  setCustomMaterial('')
-                }}
-              />
-
-              {root === 'apparel' && (
-                <>
-                  <SingleSelectCards title="Fit" options={FIT_OPTIONS} selected={fit} onSelect={setFit} />
-                  <SingleSelectCards title="Length" options={LENGTH_OPTIONS} selected={length} onSelect={setLength} />
-                  <MultiSelectCards title="Season" options={SEASON_OPTIONS} selected={season} onToggle={(value) => toggleMultiValue(season, setSeason, value)} />
-                  <MultiSelectCards title="Occasion" options={OCCASION_OPTIONS} selected={occasionTags} onToggle={(value) => toggleMultiValue(occasionTags, setOccasionTags, value)} />
-                </>
-              )}
-
-              {root === 'shoes' && (
-                <>
-                  <SingleSelectCards
-                    title="Closure"
-                    options={SHOE_CLOSURE_OPTIONS}
-                    selected={closure}
-                    onSelect={setClosure}
-                    allowAdd
-                    customValue={customClosure}
-                    setCustomValue={setCustomClosure}
-                    onAddCustom={(value) => {
-                      setClosure(value)
-                      setCustomClosure('')
+              <FieldSection>
+                <div className="field-stack">
+                  <label className="type-label text-light-secondary">Name</label>
+                  <input
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value)
+                      clearError('name')
                     }}
+                    placeholder="Item name"
+                    className={`type-body-md field-input-light ${errors.name ? 'is-error' : ''}`}
                   />
-                  <SingleSelectCards title="Usage Type" options={SHOE_USAGE_OPTIONS} selected={usageType} onSelect={setUsageType} />
-                  <SingleSelectCards title="Condition" options={CONDITION_OPTIONS} selected={condition} onSelect={setCondition} />
-                </>
-              )}
+                  {errors.name && <p className="field-error-text">{errors.name}</p>}
+                </div>
 
-              {root === 'accessories' && (
-                <>
-                  <MultiSelectCards title="Occasion" options={ACCESSORY_FUNCTION_OPTIONS} selected={occasionTags} onToggle={(value) => toggleMultiValue(occasionTags, setOccasionTags, value)} />
-                  <SingleSelectCards title="Statement" options={STATEMENT_OPTIONS} selected={statementLevel} onSelect={setStatementLevel} />
-                  {subcategory === 'Watches' && <SingleSelectCards title="Movement" options={WATCH_MOVEMENT_OPTIONS} selected={movement} onSelect={setMovement} />}
-                  {subcategory === 'Bags' && <SingleSelectCards title="Capacity" options={BAG_CAPACITY_OPTIONS} selected={bagCapacity} onSelect={setBagCapacity} />}
-                  {subcategory === 'Jewelry' && <SingleSelectCards title="Metal Type" options={METAL_TYPE_OPTIONS} selected={metalType} onSelect={setMetalType} />}
-                </>
-              )}
+                <SingleSelectCards
+                  title="Brand"
+                  options={brandOptions}
+                  selected={brand}
+                  onSelect={(value) => { setBrand(value); clearError('brand') }}
+                  error={errors.brand}
+                  allowAdd
+                  customValue={customBrand}
+                  setCustomValue={setCustomBrand}
+                  onAddCustom={(value) => {
+                    setBrand(value)
+                    setCustomBrand('')
+                    clearError('brand')
+                  }}
+                />
 
-              <MultiSelectCards title="Style Tags" options={STYLE_TAG_OPTIONS} selected={styleTags} onToggle={(value) => toggleMultiValue(styleTags, setStyleTags, value)} />
-              <div className="field-stack">
-                <div className="mt-2 grid grid-cols-4 gap-2">
-                  {customStyleTag !== '' ? (
-                    <input
-                      autoFocus
-                      value={customStyleTag === ' ' ? '' : customStyleTag}
-                      onChange={(e) => setCustomStyleTag(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                <div className="field-row-2">
+                  <div className="field-inline-item">
+                    <p className="field-inline-label type-caption text-light-muted">Gender</p>
+                    <SingleSelectCards title="Gender" options={GENDER_OPTIONS} selected={gender} onSelect={setGender} hideLabel />
+                  </div>
+                  <div className="field-inline-item">
+                    <p className="field-inline-label type-caption text-light-muted">Size</p>
+                    <SizeSelector category={resolvedCategory} subtype={subcategory} size={size} onChange={setSize} hideLabel />
+                  </div>
+                </div>
+              </FieldSection>
+
+              <FieldSection>
+                <ColorSwatchCards
+                  title="Primary Color"
+                  selected={normalizeColorLabel(primaryColor)}
+                  onSelect={(value) => { setPrimaryColor(value); clearError('primaryColor') }}
+                  error={errors.primaryColor}
+                />
+
+                <SingleSelectCards
+                  title="Pattern"
+                  options={PATTERN_OPTIONS}
+                  selected={pattern}
+                  onSelect={setPattern}
+                />
+
+                <SingleSelectCards
+                  title="Material"
+                  options={materialOptions}
+                  selected={material}
+                  onSelect={setMaterial}
+                  allowAdd
+                  customValue={customMaterial}
+                  setCustomValue={setCustomMaterial}
+                  onAddCustom={(value) => {
+                    setMaterial(value)
+                    setCustomMaterial('')
+                  }}
+                />
+              </FieldSection>
+
+              <FieldSection>
+                {root === 'apparel' && (
+                  <>
+                    <div className="field-row-2">
+                      <div className="field-inline-item">
+                        <p className="field-inline-label type-caption text-light-muted">Fit</p>
+                        <SingleSelectCards title="Fit" options={FIT_OPTIONS} selected={fit} onSelect={setFit} hideLabel />
+                      </div>
+                      <div className="field-inline-item">
+                        <p className="field-inline-label type-caption text-light-muted">Length</p>
+                        <SingleSelectCards title="Length" options={LENGTH_OPTIONS} selected={length} onSelect={setLength} hideLabel />
+                      </div>
+                    </div>
+                    <div className="field-inline-item">
+                      <p className="field-inline-label type-caption text-light-muted">Season</p>
+                      <MultiSelectCards title="Season" options={SEASON_OPTIONS} selected={season} onToggle={(value) => toggleMultiValue(season, setSeason, value)} hideLabel />
+                    </div>
+                  </>
+                )}
+
+                <MultiSelectCards
+                  title="Occasion"
+                  options={root === 'accessories' ? ACCESSORY_FUNCTION_OPTIONS : OCCASION_OPTIONS}
+                  selected={occasionTags}
+                  onToggle={(value) => toggleMultiValue(occasionTags, setOccasionTags, value)}
+                />
+
+                <MultiSelectCards title="Style Tags" options={STYLE_TAG_OPTIONS} selected={styleTags} onToggle={(value) => toggleMultiValue(styleTags, setStyleTags, value)} />
+                <div className="field-stack">
+                  <div className="option-card-add-row mt-2">
+                    {customStyleTag !== '' ? (
+                      <input
+                        autoFocus
+                        value={customStyleTag === ' ' ? '' : customStyleTag}
+                        onChange={(e) => setCustomStyleTag(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const next = (customStyleTag === ' ' ? '' : customStyleTag).trim()
+                            if (!next) return
+                            if (!styleTags.includes(next)) setStyleTags((current) => [...current, next])
+                            setCustomStyleTag('')
+                          }
+                        }}
+                        onBlur={() => {
                           const next = (customStyleTag === ' ' ? '' : customStyleTag).trim()
-                          if (!next) return
+                          if (!next) {
+                            setCustomStyleTag('')
+                            return
+                          }
                           if (!styleTags.includes(next)) setStyleTags((current) => [...current, next])
                           setCustomStyleTag('')
-                        }
-                      }}
-                      onBlur={() => {
-                        const next = (customStyleTag === ' ' ? '' : customStyleTag).trim()
-                        if (!next) {
-                          setCustomStyleTag('')
-                          return
-                        }
-                        if (!styleTags.includes(next)) setStyleTags((current) => [...current, next])
-                        setCustomStyleTag('')
-                      }}
-                      className="type-button-sm field-input-light h-11 text-center"
-                      placeholder="+"
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setCustomStyleTag(' ')}
-                      className="type-button-sm option-card-light"
-                    >
-                      +
-                    </button>
-                  )}
+                        }}
+                        className="type-button-sm field-input-light option-card-add-input"
+                        placeholder="+"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setCustomStyleTag(' ')}
+                        className="type-button-sm option-card-light option-card-add"
+                      >
+                        +
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              </FieldSection>
 
-              <SingleSelectCards title="Favorite" options={['No', 'Yes']} selected={favoriteItem ? 'Yes' : 'No'} onSelect={(value) => setFavoriteItem(value === 'Yes')} />
+              {root !== 'apparel' && (
+                <FieldSection>
+                  {root === 'shoes' && (
+                    <>
+                      <SingleSelectCards title="Closure" options={SHOE_CLOSURE_OPTIONS} selected={closure} onSelect={setClosure} />
+                      <SingleSelectCards title="Usage Type" options={SHOE_USAGE_OPTIONS} selected={usageType} onSelect={setUsageType} />
+                      <SingleSelectCards title="Condition" options={CONDITION_OPTIONS} selected={condition} onSelect={setCondition} />
+                    </>
+                  )}
 
-              <div className="field-stack">
-                <label className="type-label text-light-secondary">Price</label>
-                <input value={price} inputMode="decimal" onChange={(e) => { setPrice(e.target.value); clearError('price') }} className={`type-body-md field-input-light ${errors.price ? 'is-error' : ''}`} placeholder="$ Price" />
-                {errors.price && <p className="field-error-text">{errors.price}</p>}
-              </div>
+                  {root === 'accessories' && (
+                    <>
+                      <SingleSelectCards title="Statement" options={STATEMENT_OPTIONS} selected={statementLevel} onSelect={setStatementLevel} />
+                      {subcategory === 'Watches' && <SingleSelectCards title="Movement" options={WATCH_MOVEMENT_OPTIONS} selected={movement} onSelect={setMovement} />}
+                      {subcategory === 'Bags' && <SingleSelectCards title="Capacity" options={BAG_CAPACITY_OPTIONS} selected={bagCapacity} onSelect={setBagCapacity} />}
+                      {subcategory === 'Jewelry' && <SingleSelectCards title="Metal Type" options={METAL_TYPE_OPTIONS} selected={metalType} onSelect={setMetalType} />}
+                    </>
+                  )}
+                </FieldSection>
+              )}
 
-              <div className="field-stack">
-                <label className="type-label text-light-secondary">Purchase Year</label>
-                <input
-                  value={purchaseYear}
-                  type="number"
-                  min="1900"
-                  max="2100"
-                  step="1"
-                  onChange={(e) => setPurchaseYear(e.target.value.replace(/[^\d]/g, '').slice(0, 4))}
-                  className="type-body-md field-input-light"
-                  placeholder="Optional"
-                />
-              </div>
+              <FieldSection>
+                <div className="field-inline-item">
+                  <p className="field-inline-label type-caption text-light-muted">Favorite</p>
+                  <SingleSelectCards title="Favorite" options={['No', 'Yes']} selected={favoriteItem ? 'Yes' : 'No'} onSelect={(value) => setFavoriteItem(value === 'Yes')} hideLabel />
+                </div>
 
-              <div className="field-stack">
-                <label className="type-label text-light-secondary">Added Date</label>
-                <input value={addedAt} type="date" onChange={(e) => setAddedAt(e.target.value)} className="type-body-md field-input-light" />
-              </div>
+                <div className="field-row-2">
+                  <div className="field-stack">
+                    <label className="type-label text-light-secondary">Price</label>
+                    <input value={price} inputMode="decimal" onChange={(e) => setPrice(e.target.value)} className="type-body-md field-input-light" placeholder="$ Optional" />
+                  </div>
+
+                  <div className="field-stack">
+                    <label className="type-label text-light-secondary">Purchase Year</label>
+                    <input
+                      value={purchaseYear}
+                      type="number"
+                      min="1900"
+                      max="2100"
+                      step="1"
+                      onChange={(e) => setPurchaseYear(e.target.value.replace(/[^\d]/g, '').slice(0, 4))}
+                      className="type-body-md field-input-light"
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
+
+                <div className="field-stack">
+                  <label className="type-label text-light-secondary">Added Date</label>
+                  <p className="type-caption text-light-muted">Auto-filled for new items. Change only when backfilling older pieces.</p>
+                  <input value={addedAt} type="date" onChange={(e) => setAddedAt(e.target.value)} className="type-body-md field-input-light" />
+                </div>
+              </FieldSection>
             </div>
           </aside>
         </div>

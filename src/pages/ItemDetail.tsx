@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useWardrobe } from '@/hooks/useWardrobe'
 import { normalizeColorLabel } from '@/lib/colors'
 import { processImageSource, type ImageProcessingMode } from '@/lib/imageProcessing'
+import { generateMannequinImage, mannequinCategoryFromItemCategory } from '@/lib/mannequinClient'
 import { ALL_SUBTYPES, SUBTYPE_TO_CATEGORY } from '@/lib/taxonomy'
 import ProductImage from '@/components/ProductImage'
 import SizeSelector from '@/components/SizeSelector'
@@ -20,7 +21,8 @@ const mergeOptions = (...groups: (string | undefined)[][]) =>
   ).sort((a, b) => a.localeCompare(b))
 
 function getImageProcessingMode(item: WardrobeItem): ImageProcessingMode {
-  if (item.category === 'tops' || item.category === 'bottoms') {
+  if (item.category === 'bottoms') return 'bottoms'
+  if (item.category === 'tops') {
     const subtype = item.subtype.toLowerCase()
     if (subtype.includes('jacket') || subtype.includes('coat') || subtype.includes('blazer')) {
       return 'jacket'
@@ -38,7 +40,7 @@ export default function ItemDetail() {
   const { id } = useParams()
   const [params, setParams] = useSearchParams()
   const nav = useNavigate()
-  const { getItemById, items, updateItem } = useWardrobe()
+  const { getItemById, items, updateItem, deleteItem } = useWardrobe()
   const [activeImage, setActiveImage] = useState(0)
   const [draft, setDraft] = useState<WardrobeItem | null>(null)
   const [customBrand, setCustomBrand] = useState('')
@@ -116,11 +118,11 @@ export default function ItemDetail() {
       reader.readAsDataURL(file)
     })
 
-  const commitMedia = (all: string[], nextActive = 0) => {
+  const commitMedia = async (all: string[], nextActive = 0) => {
     const nextImage = all[0] ?? ''
     const nextImages = all.slice(1)
     setDraft((current) => (current ? { ...current, image: nextImage, images: nextImages } : current))
-    updateItem(item.id, { image: nextImage, images: nextImages })
+    await updateItem(item.id, { image: nextImage, images: nextImages })
     setActiveImage(Math.max(0, Math.min(nextActive, Math.max(all.length - 1, 0))))
   }
 
@@ -128,10 +130,23 @@ export default function ItemDetail() {
     const list = Array.from(files)
     if (list.length === 0) return
     const processingMode = getImageProcessingMode(draft)
+    const mannequinCategory = mannequinCategoryFromItemCategory(draft.category)
+    const mannequinPrompt = draft.name.trim() || draft.subtype || undefined
     const loaded = (await Promise.all(
       list.map(async (file) => {
         const raw = await readFile(file)
         if (!raw) return ''
+        if (mannequinCategory) {
+          try {
+            return await generateMannequinImage({
+              category: mannequinCategory,
+              imageDataUrl: raw,
+              prompt: mannequinPrompt,
+            })
+          } catch {
+            // Fall through to local processing on API/generation failure.
+          }
+        }
         try {
           return await processImageSource(raw, processingMode)
         } catch {
@@ -146,16 +161,22 @@ export default function ItemDetail() {
       return
     }
 
-    commitMedia([...allImages, ...loaded], activeImage)
+    void commitMedia([...allImages, ...loaded], activeImage)
   }
 
-  const saveDraft = () => {
-    updateItem(item.id, {
+  const saveDraft = async () => {
+    await updateItem(item.id, {
       ...draft,
     })
     setPickedImageIndex(null)
     params.delete('edit')
     setParams(params, { replace: true })
+  }
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete "${item.name}" from your closet?`)) return
+    await deleteItem(item.id)
+    nav('/closet')
   }
 
   const movePickedImage = (targetIndex: number) => {
@@ -218,14 +239,17 @@ export default function ItemDetail() {
   )
 
   return (
-    <div className="h-[calc(100vh-96px)] overflow-hidden bg-card text-text-dark md:h-[calc(100vh-56px)]">
+    <div className="page-shell-workstation app-viewport app-viewport-lock">
       <div className="flex h-full flex-col">
-        <div className="page-frame flex items-center justify-between border-b border-light-soft py-3">
-          <div className="type-caption flex items-center gap-3 text-light-secondary">
-            <button onClick={() => nav(-1)} className="type-button-sm button-ghost text-light-secondary">
-              Back
-            </button>
-            <span>{item.brand} {item.name}</span>
+        <div className="page-frame workstation-bar">
+          <div className="workstation-bar-copy">
+            <div className="workstation-bar-meta type-caption">
+              <button onClick={() => nav(-1)} className="type-button-sm button-ghost text-light-secondary">
+                Back
+              </button>
+              <span>{item.brand}</span>
+            </div>
+            <h1 className="type-h2 text-text-dark">{item.name}</h1>
           </div>
           <div />
         </div>
@@ -242,9 +266,11 @@ export default function ItemDetail() {
           }}
         />
 
-        <div className="relative flex flex-1 flex-col overflow-hidden bg-card">
-            <div className="relative flex min-h-0 flex-1 items-center justify-center px-8 pb-22 pt-5">
-              <ProductImage src={allImages[activeImage]} alt={item.name} className={mediaItem.category === 'shoes' ? '' : 'max-h-[65vh] max-w-full object-contain'} mode={getImageProcessingMode(mediaItem)} fit={getImageFit(mediaItem)} />
+        <div className="relative grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden bg-card">
+            <div className="detail-media-panel relative min-h-0 overflow-hidden">
+              <div className="detail-media-frame min-h-0">
+                <ProductImage src={allImages[activeImage]} alt={item.name} className={mediaItem.category === 'shoes' ? '' : 'detail-media-image'} mode={getImageProcessingMode(mediaItem)} fit={getImageFit(mediaItem)} />
+              </div>
 
               {allImages.length > 1 && (
                 <>
@@ -265,9 +291,9 @@ export default function ItemDetail() {
             </div>
 
             {factsOpen && (
-              <div className="drawer-panel absolute bottom-[68px] right-4 max-h-[calc(100vh-228px)] w-[292px]">
+              <div className="drawer-panel detail-drawer-sm absolute">
                 <div className="drawer-header">
-                  <p className="type-label text-light-strong">Details</p>
+                  <h2 className="type-h4 text-text-dark">Details</h2>
                   <button
                     onClick={() => setFactsOpen(false)}
                     className="type-button-sm button-ghost text-light-secondary"
@@ -278,7 +304,7 @@ export default function ItemDetail() {
 
                 <div className="border-b border-light px-3 py-2">
                   <p className="type-caption text-light-secondary">{item.brand}</p>
-                  <h1 className="type-h4 mt-1 max-w-[15ch] text-text-dark">{item.name}</h1>
+                  <h3 className="type-h3 mt-1 max-w-[15ch] text-text-dark">{item.name}</h3>
                 </div>
 
                 {factsItems.length > 0 && (
@@ -319,10 +345,16 @@ export default function ItemDetail() {
             )}
 
             {isEditing && (
-              <div className="drawer-panel absolute bottom-[68px] right-4 max-h-[calc(100vh-228px)] w-[336px]">
+              <div className="drawer-panel detail-drawer-md absolute">
                 <div className="drawer-header">
-                  <p className="type-label text-light-strong">Edit</p>
+                  <h2 className="type-h4 text-text-dark">Edit</h2>
                   <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => void handleDelete()}
+                      className="type-button-sm button-danger"
+                    >
+                      Delete
+                    </button>
                     <button
                       onClick={() => {
                         params.delete('edit')

@@ -1,0 +1,77 @@
+services:
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+  mannequin-api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      OUTPUT_DIR: /data/outputs
+      PUBLIC_OUTPUT_BASE: /outputs
+      API_BASE_PATH: /api/v1
+      CORS_ALLOW_ORIGINS: http://localhost:3001,http://127.0.0.1:3001
+      GENERATOR_MODE: ${GENERATOR_MODE:-hf_local}
+      GENERATOR_TIMEOUT_SECONDS: ${GENERATOR_TIMEOUT_SECONDS:-60}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
+      OPENAI_IMAGE_MODEL: ${OPENAI_IMAGE_MODEL:-gpt-image-1.5}
+      OPENAI_IMAGE_QUALITY: ${OPENAI_IMAGE_QUALITY:-high}
+      OPENAI_IMAGE_MODERATION: ${OPENAI_IMAGE_MODERATION:-auto}
+      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-true}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b-instruct}
+      HF_MODEL_ID: ${HF_MODEL_ID:-diffusers/sdxl-instructpix2pix-768}
+      HF_DEVICE: ${HF_DEVICE:-cpu}
+      HF_NUM_INFERENCE_STEPS: ${HF_NUM_INFERENCE_STEPS:-30}
+      HF_GUIDANCE_SCALE: ${HF_GUIDANCE_SCALE:-7.0}
+      HF_IMAGE_STRENGTH: ${HF_IMAGE_STRENGTH:-0.45}
+      MANNEQUIN_TEMPLATE_IMAGE: ${MANNEQUIN_TEMPLATE_IMAGE:-/app/assets/egmusc.webp}
+    ports:
+      - "8001:8000"
+    depends_on:
+      - redis
+    volumes:
+      - ./backend/outputs:/data/outputs
+
+  mannequin-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    profiles:
+      - docker-worker
+    command: python -m app.worker
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      OUTPUT_DIR: /data/outputs
+      PUBLIC_OUTPUT_BASE: /outputs
+      API_BASE_PATH: /api/v1
+      CORS_ALLOW_ORIGINS: http://localhost:3001,http://127.0.0.1:3001
+      GENERATOR_MODE: ${GENERATOR_MODE:-hf_local}
+      GENERATOR_TIMEOUT_SECONDS: ${GENERATOR_TIMEOUT_SECONDS:-60}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
+      OPENAI_IMAGE_MODEL: ${OPENAI_IMAGE_MODEL:-gpt-image-1.5}
+      OPENAI_IMAGE_QUALITY: ${OPENAI_IMAGE_QUALITY:-high}
+      OPENAI_IMAGE_MODERATION: ${OPENAI_IMAGE_MODERATION:-auto}
+      OLLAMA_ENABLED: ${OLLAMA_ENABLED:-true}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b-instruct}
+      HF_MODEL_ID: ${HF_MODEL_ID:-diffusers/sdxl-instructpix2pix-768}
+      HF_DEVICE: ${HF_DEVICE:-cpu}
+      HF_NUM_INFERENCE_STEPS: ${HF_NUM_INFERENCE_STEPS:-30}
+      HF_GUIDANCE_SCALE: ${HF_GUIDANCE_SCALE:-7.0}
+      HF_IMAGE_STRENGTH: ${HF_IMAGE_STRENGTH:-0.45}
+      MANNEQUIN_TEMPLATE_IMAGE: ${MANNEQUIN_TEMPLATE_IMAGE:-/app/assets/egmusc.webp}
+    depends_on:
+      - redis
+      - mannequin-api
+    volumes:
+      - ./backend/outputs:/data/outputs
+
+volumes:
+  redis_data:
