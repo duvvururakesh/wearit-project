@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backend:up": "docker compose up --build redis mannequin-api",
+    "backend:up:docker-worker": "docker compose --profile docker-worker up --build redis mannequin-api mannequin-worker",
+    "backend:worker:host": "bash backend/start-host-worker.sh",
+    "backend:down": "docker compose down"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",

@@ -30,11 +30,13 @@ export default function SizeSelector({
   subtype,
   size,
   onChange,
+  hideLabel = false,
 }: {
   category: Category
   subtype: string
   size: string
   onChange: (value: string) => void
+  hideLabel?: boolean
 }) {
   const shoeMode = isShoeSize(category, subtype)
   const bottomMode = isBottomSize(category, subtype)
@@ -70,7 +72,7 @@ export default function SizeSelector({
     const parsed = parseShoeSize(size)
     return (
       <div className="field-stack">
-        <label className="type-label text-light-secondary">Size</label>
+        {!hideLabel && <label className="type-label text-light-secondary">Size</label>}
         <div className="option-grid mt-2">
           {SHOE_UNITS.map((unit) => (
             <button
@@ -114,14 +116,14 @@ export default function SizeSelector({
               onBlur={() => {
                 if (!customNumber.trim()) setShowCustom(false)
               }}
-              className="type-button-sm field-input-light h-11 text-center"
+              className="type-button-sm field-input-light option-card-add-input"
               placeholder="+"
             />
           ) : (
             <button
               type="button"
               onClick={() => setShowCustom(true)}
-              className="type-button-sm option-card-light"
+              className="type-button-sm option-card-light option-card-add"
             >
               +
             </button>
@@ -136,7 +138,7 @@ export default function SizeSelector({
 
   return (
     <div className="field-stack">
-      <label className="type-label text-light-secondary">Size</label>
+      {!hideLabel && <label className="type-label text-light-secondary">Size</label>}
       <div className="option-grid mt-2">
         {ALPHA_SIZES.map((value) => (
           <button
@@ -177,14 +179,14 @@ export default function SizeSelector({
             onBlur={() => {
               if (!customNumber.trim()) setShowCustom(false)
             }}
-            className="type-button-sm field-input-light h-11 text-center"
+            className="type-button-sm field-input-light option-card-add-input"
             placeholder="+"
           />
         ) : (
           <button
             type="button"
             onClick={() => setShowCustom(true)}
-            className="type-button-sm option-card-light"
+            className="type-button-sm option-card-light option-card-add"
           >
             +
           </button>

@@ -42,12 +42,12 @@ export default function SaveOutfitModal({ open, onClose, onSave }: Props) {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 surface-panel-dark radius-lg"
+            className="fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 surface-panel-dark"
           >
             <div className="drawer-header border-border">
               <h3 className="type-h4 text-text-primary">Save This Look</h3>
               <button onClick={onClose} className="button-icon">
-                <X size={18} className="text-text-muted" />
+                <X size={16} className="text-text-muted" />
               </button>
             </div>
             <div className="drawer-body">

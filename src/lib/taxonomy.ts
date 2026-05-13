@@ -7,6 +7,14 @@ type TreeNode = {
   category: Category
 }
 
+type RootKey = 'apparel' | 'shoes' | 'accessories'
+
+type CustomTreeNode = TreeNode & {
+  root: RootKey
+}
+
+const CUSTOM_SUBCATEGORIES_STORAGE_KEY = 'wearit-custom-subcategories'
+
 export const CLOSET_TREE: Record<'apparel' | 'shoes' | 'accessories', TreeNode[]> = {
   apparel: [
     { section: 'Tops', subcategory: 'T-Shirts', detailTypes: ['Basic Tee', 'Graphic Tee', 'Long Sleeve'], category: 'tops' },
@@ -105,13 +113,13 @@ export function getRootOptions() {
 }
 
 export function getSections(root: 'apparel' | 'shoes' | 'accessories') {
-  return Array.from(new Set(CLOSET_TREE[root].map((node) => node.section)))
+  return Array.from(new Set([...CLOSET_TREE[root], ...getCustomNodes(root)].map((node) => node.section)))
 }
 
 export function getSubcategories(root: 'apparel' | 'shoes' | 'accessories', section: string) {
   return Array.from(
     new Set(
-      CLOSET_TREE[root]
+      [...CLOSET_TREE[root], ...getCustomNodes(root)]
         .filter((node) => node.section === section)
         .map((node) => node.subcategory),
     ),
@@ -119,9 +127,60 @@ export function getSubcategories(root: 'apparel' | 'shoes' | 'accessories', sect
 }
 
 export function getDetailTypes(root: 'apparel' | 'shoes' | 'accessories', section: string, subcategory: string) {
-  return CLOSET_TREE[root].find((node) => node.section === section && node.subcategory === subcategory)?.detailTypes ?? []
+  return [...CLOSET_TREE[root], ...getCustomNodes(root)].find((node) => node.section === section && node.subcategory === subcategory)?.detailTypes ?? []
 }
 
 export function getNodeForSelection(root: 'apparel' | 'shoes' | 'accessories', section: string, subcategory: string) {
-  return CLOSET_TREE[root].find((node) => node.section === section && node.subcategory === subcategory) ?? null
+  return [...CLOSET_TREE[root], ...getCustomNodes(root)].find((node) => node.section === section && node.subcategory === subcategory) ?? null
+}
+
+function getCustomNodes(root: RootKey): TreeNode[] {
+  if (typeof window === 'undefined') return []
+
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_SUBCATEGORIES_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as CustomTreeNode[]
+    return parsed
+      .filter((node) => node.root === root)
+      .map(({ root: _root, ...node }) => node)
+  } catch {
+    return []
+  }
+}
+
+function defaultCategoryFor(root: RootKey, section: string): Category {
+  if (root === 'shoes') return 'shoes'
+  if (root === 'accessories') return 'face'
+  return section === 'Bottoms' ? 'bottoms' : 'tops'
+}
+
+export function addCustomSubcategory(root: RootKey, section: string, subcategory: string) {
+  if (typeof window === 'undefined') return
+
+  const normalizedSubcategory = subcategory.trim()
+  if (!normalizedSubcategory) return
+
+  const nextNode: CustomTreeNode = {
+    root,
+    section,
+    subcategory: normalizedSubcategory,
+    detailTypes: ['General'],
+    category: defaultCategoryFor(root, section),
+  }
+
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_SUBCATEGORIES_STORAGE_KEY)
+    const parsed = raw ? (JSON.parse(raw) as CustomTreeNode[]) : []
+    const alreadyExists = parsed.some(
+      (node) =>
+        node.root === root &&
+        node.section === section &&
+        node.subcategory.toLowerCase() === normalizedSubcategory.toLowerCase(),
+    )
+    if (alreadyExists) return
+    window.localStorage.setItem(CUSTOM_SUBCATEGORIES_STORAGE_KEY, JSON.stringify([...parsed, nextNode]))
+  } catch {
+    // Ignore storage failures and keep base taxonomy intact.
+  }
 }

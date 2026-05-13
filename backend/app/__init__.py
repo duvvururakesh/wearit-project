@@ -1,0 +1,1 @@
+"""Wearit mannequin backend package."""

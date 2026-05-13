@@ -6,6 +6,25 @@ import { useWardrobe } from '@/hooks/useWardrobe'
 import ProductImage from '@/components/ProductImage'
 import type { OutfitCombo, WardrobeItem } from '@/types'
 
+function getImageMode(item: WardrobeItem) {
+  if (item.category === 'shoes') return 'strict' as const
+  if (item.category === 'bottoms') return 'bottoms' as const
+  const subtype = item.subtype.toLowerCase()
+  if (subtype.includes('jacket') || subtype.includes('coat') || subtype.includes('blazer')) {
+    return 'jacket' as const
+  }
+  return 'apparel' as const
+}
+
+function isJacketLike(item: WardrobeItem) {
+  const subtype = item.subtype.toLowerCase()
+  return subtype.includes('jacket') || subtype.includes('coat') || subtype.includes('blazer')
+}
+
+function isLargeApparelForFeatureTile(item: WardrobeItem) {
+  return item.category === 'tops' || item.category === 'bottoms'
+}
+
 function ShoeMarqueeRow({
   items,
   direction,
@@ -41,7 +60,7 @@ function ShoeMarqueeRow({
             <ProductImage
               src={item.image}
               alt={item.name}
-              className={item.category === 'shoes' ? '' : 'card-product-cell-image'}
+              className={item.category === 'shoes' ? '' : `card-product-cell-image ${isJacketLike(item) ? 'home-jacket-image' : ''}`}
               loading="lazy"
               mode="strict"
               fit="shoe"
@@ -74,9 +93,9 @@ function StoryStrip({
             <ProductImage
               src={item.image}
               alt={item.name}
-              className={item.category === 'shoes' ? '' : 'h-full w-full object-contain'}
+              className={item.category === 'shoes' ? '' : `h-full w-full object-contain ${isJacketLike(item) ? 'home-jacket-image' : ''}`}
               loading="lazy"
-              mode={item.subtype === 'Jackets' ? 'jacket' : item.category === 'shoes' ? 'strict' : 'apparel'}
+              mode={getImageMode(item)}
               fit={item.category === 'shoes' ? 'shoe' : 'default'}
             />
           </div>
@@ -93,9 +112,11 @@ function StoryStrip({
 function MiniItemMarquee({
   items,
   onItemClick,
+  interactive = true,
 }: {
   items: WardrobeItem[]
   onItemClick: (item: WardrobeItem) => void
+  interactive?: boolean
 }) {
   const gridItems = useMemo(() => {
     if (items.length === 0) return []
@@ -108,20 +129,22 @@ function MiniItemMarquee({
   if (gridItems.length === 0) return null
 
   return (
-    <div className="grid w-full grid-cols-5 gap-2">
+    <div className="grid h-full w-full grid-cols-5 grid-rows-5 place-items-center gap-2 content-center">
       {gridItems.map((item, index) => (
-        <div key={`${item.id}-mini-${index}`} className="flex items-center justify-center">
+        <div key={`${item.id}-mini-${index}`} className="flex h-full w-full min-h-0 items-center justify-center">
           <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onItemClick(item)}
-            className="flex aspect-square w-full items-end justify-center"
+            whileHover={interactive ? { scale: 1.04 } : undefined}
+            whileTap={interactive ? { scale: 0.98 } : undefined}
+            onClick={() => {
+              if (interactive) onItemClick(item)
+            }}
+            className="flex h-full w-full min-h-0 items-end justify-center"
           >
             <ProductImage
               src={item.image}
               alt={item.name}
-              className={item.category === 'shoes' ? '' : 'h-full w-full object-contain'}
-              mode={item.category === 'shoes' ? 'strict' : 'apparel'}
+              className={item.category === 'shoes' ? '' : `h-full w-full object-contain ${isJacketLike(item) ? 'home-jacket-image' : ''}`}
+              mode={getImageMode(item)}
               fit={item.category === 'shoes' ? 'shoe' : 'default'}
             />
           </motion.button>
@@ -136,11 +159,13 @@ function ItemSlideshow({
   onClick,
   whiteStage = false,
   slideshow = true,
+  interactive = true,
 }: {
   item?: WardrobeItem
   onClick: (item: WardrobeItem) => void
   whiteStage?: boolean
   slideshow?: boolean
+  interactive?: boolean
 }) {
   const images = item ? [item.image, ...item.images].filter(Boolean) : []
   const [activeIndex, setActiveIndex] = useState(0)
@@ -159,19 +184,27 @@ function ItemSlideshow({
 
   if (!item) return null
 
+  const isLargeApparel = isLargeApparelForFeatureTile(item)
+
   return (
     <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={() => onClick(item)}
-      className={`flex h-[156px] w-full items-end justify-center overflow-hidden ${whiteStage ? 'bg-card' : ''}`}
+      whileHover={interactive ? { scale: 1.02 } : undefined}
+      whileTap={interactive ? { scale: 0.98 } : undefined}
+      onClick={() => {
+        if (interactive) onClick(item)
+      }}
+      className={`flex ${isLargeApparel ? 'h-[186px]' : 'h-[156px]'} w-full items-end justify-center overflow-hidden ${whiteStage ? 'bg-card' : ''}`}
     >
-      <div className="flex h-[142px] w-full items-end justify-center">
+      <div className={`flex ${isLargeApparel ? 'h-[172px]' : 'h-[142px]'} w-full items-end justify-center`}>
         <ProductImage
           src={images[activeIndex] ?? item.image}
           alt={item.name}
-          className={item.category === 'shoes' ? '' : 'h-full w-full object-contain'}
-          mode={item.subtype === 'Jackets' ? 'jacket' : item.category === 'shoes' ? 'strict' : 'apparel'}
+          className={
+            item.category === 'shoes'
+              ? ''
+              : `h-full w-full object-contain ${isJacketLike(item) ? 'home-jacket-image' : ''} ${isLargeApparel ? 'home-spotlight-apparel' : ''}`
+          }
+          mode={getImageMode(item)}
           fit={item.category === 'shoes' ? 'shoe' : 'default'}
         />
       </div>
@@ -184,11 +217,13 @@ function BuilderStackPreview({
   items,
   getItemById,
   onOpen,
+  interactive = true,
 }: {
   outfit?: OutfitCombo
   items?: WardrobeItem[]
   getItemById: (id: string) => WardrobeItem | undefined
   onOpen: (outfit?: OutfitCombo) => void
+  interactive?: boolean
 }) {
   const stackItems = items && items.length > 0
     ? items.slice(0, 4)
@@ -197,9 +232,7 @@ function BuilderStackPreview({
       : []
 
   const getPreviewMode = (item: WardrobeItem) => {
-    if (item.category === 'shoes') return 'strict' as const
-    if (item.category === 'bottoms') return 'strict' as const
-    return item.subtype === 'Jackets' ? 'jacket' as const : 'apparel' as const
+    return getImageMode(item)
   }
 
   const placementByCategory: Record<WardrobeItem['category'], { left: string; top: string; width: string; height: string; zIndex: number; transform?: string }> = {
@@ -211,13 +244,15 @@ function BuilderStackPreview({
 
   return (
     <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={() => onOpen(outfit)}
+      whileHover={interactive ? { scale: 1.02 } : undefined}
+      whileTap={interactive ? { scale: 0.98 } : undefined}
+      onClick={() => {
+        if (interactive) onOpen(outfit)
+      }}
       className="relative flex h-full w-full items-center justify-center overflow-hidden pt-4"
     >
       {stackItems.length > 0 ? (
-        <div className="relative h-[272px] w-[296px] translate-x-[-12px] translate-y-3">
+        <div className="relative h-[272px] w-[296px] translate-x-[-12px] translate-y-[-8px]">
           {stackItems.slice(0, 4).map((item, index) => (
             <div
               key={`${item.id}-stack-${index}`}
@@ -230,7 +265,7 @@ function BuilderStackPreview({
                 <ProductImage
                   src={item.image}
                   alt={item.name}
-                  className={item.category === 'shoes' ? '' : 'h-full w-full object-contain'}
+                  className={item.category === 'shoes' ? '' : `h-full w-full object-contain ${isJacketLike(item) ? 'home-jacket-image' : ''}`}
                   mode={getPreviewMode(item)}
                   fit={item.category === 'shoes' ? 'shoe' : 'default'}
                 />
@@ -252,6 +287,7 @@ export default function Home() {
   const goItem = (item: WardrobeItem) => nav(`/item/${item.id}`)
 
   const allSorted = [...items].sort((a, b) => b.addedAt.localeCompare(a.addedAt))
+  const favoriteItems = allSorted.filter((item) => item.favoriteItem)
   const shoes = items.filter((item) => item.category === 'shoes')
   const shoeWall = useMemo(() => {
     if (shoes.length === 0) return []
@@ -280,7 +316,7 @@ export default function Home() {
 
     return result
   }, [shoes])
-  const spotlight = getUnderusedItems()[0] ?? allSorted[0]
+  const spotlight = favoriteItems[0] ?? getUnderusedItems()[0] ?? allSorted[0]
   const latestAdd = allSorted[0]
   const itemMarqueeItems = useMemo(() => [...allSorted].sort(() => Math.random() - 0.5), [allSorted])
   const featuredOutfit = savedOutfits[0]
@@ -311,56 +347,81 @@ export default function Home() {
   )
 
   return (
-    <div className="h-[calc(100vh-96px)] overflow-y-auto snap-y snap-mandatory md:h-[calc(100vh-56px)]">
-      <section className="page-header snap-start overflow-hidden">
-        <div className="grid h-[calc(100vh-96px)] grid-cols-1 gap-px border-border bg-border md:h-[calc(100vh-56px)] xl:grid-cols-4 xl:grid-rows-2">
+    <div className="page-shell-dark app-viewport app-viewport-scroll">
+      <section className="page-header app-viewport shrink-0 overflow-hidden">
+        <div className="grid h-full grid-cols-1 gap-px border-border bg-border xl:grid-cols-4 xl:grid-rows-2">
           <div className="page-frame flex min-h-0 flex-col justify-center overflow-hidden bg-bg pb-10 pt-4 xl:col-span-2 xl:row-span-1 xl:pb-16 xl:pt-6">
             <p className="type-label text-text-muted">CLOSET ARCHIVE</p>
-            <h1 className="type-display mt-4 max-w-[12ch] text-text-primary">Your closet in one place.</h1>
+            <h1 className="type-h2 mt-4 max-w-[12ch] text-text-primary">Your closet in one place.</h1>
             <p className="type-body-lg mt-4 max-w-xl text-text-secondary">
               Browse your wardrobe through sections, outfit building, quick filtering, and detail pages built from the pieces you actually own.
             </p>
             <div className="mt-8">
               <button
-                onClick={() => nav('/add?category=tops')}
-                className="type-button-md inline-flex items-center gap-2 whitespace-nowrap text-text-primary"
+                onClick={() => nav('/upload?category=tops')}
+                className="type-button-md button-ghost inline-flex items-center gap-2 whitespace-nowrap text-text-primary"
               >
-                Add Apparel:
+                Upload New Item <ChevronRight size={16} className="shrink-0" />
               </button>
             </div>
           </div>
 
-          <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card px-6 pb-8 pt-4 xl:col-start-3 xl:row-start-1">
+          <motion.div
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            onClick={() => nav('/closet')}
+            className="flex h-full min-h-0 cursor-pointer flex-col overflow-hidden bg-card px-6 pb-8 pt-4 xl:col-start-3 xl:row-start-1"
+          >
               <p className="type-label text-light-secondary">Items</p>
               <p className="type-h1 mt-3 text-text-dark">{items.length}</p>
-              <div className="mt-4 flex flex-1 items-start justify-center overflow-hidden">
-                <MiniItemMarquee items={itemMarqueeItems} onItemClick={goItem} />
+              <div className="mt-4 flex flex-1 items-center justify-center overflow-hidden">
+                <MiniItemMarquee items={itemMarqueeItems} onItemClick={goItem} interactive={false} />
               </div>
-            </div>
-            <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card px-6 pb-8 pt-4 xl:col-start-4 xl:row-start-1">
+          </motion.div>
+            <motion.div
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={() => {
+                if (spotlight) goItem(spotlight)
+              }}
+              className="flex h-full min-h-0 cursor-pointer flex-col overflow-hidden bg-card px-6 pb-8 pt-4 xl:col-start-4 xl:row-start-1"
+            >
               <p className="type-label text-light-secondary">Spotlight</p>
               <p className="type-h3 mt-4 text-text-dark">{spotlight?.name ?? 'Closet taking shape'}</p>
               <div className="mt-3 flex flex-1 items-center justify-center">
-                <ItemSlideshow item={spotlight} onClick={goItem} />
+                <ItemSlideshow item={spotlight} onClick={goItem} interactive={false} />
               </div>
-            </div>
+            </motion.div>
             <div className="hidden bg-card xl:block xl:col-span-2 xl:row-start-2" />
-            <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card px-6 pb-8 pt-4 xl:col-start-3 xl:row-start-2">
+            <motion.div
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={() => {
+                if (latestAdd) goItem(latestAdd)
+              }}
+              className="flex h-full min-h-0 cursor-pointer flex-col overflow-hidden bg-card px-6 pb-8 pt-4 xl:col-start-3 xl:row-start-2"
+            >
               <p className="type-label text-light-secondary">Latest Add</p>
               <p className="type-h3 mt-4 text-text-dark">{latestAdd?.name ?? 'None yet'}</p>
               <div className="mt-3 flex flex-1 items-center justify-center">
-                <ItemSlideshow item={latestAdd} onClick={goItem} whiteStage slideshow={false} />
+                <ItemSlideshow item={latestAdd} onClick={goItem} whiteStage slideshow={false} interactive={false} />
               </div>
-            </div>
-            <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card px-6 pb-8 pt-4 xl:col-start-4 xl:row-start-2">
-              <motion.button
+            </motion.div>
+            <motion.div
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={() => {
+                if (featuredOutfit) loadOutfit(featuredOutfit)
+                nav('/builder')
+              }}
+              className="flex h-full min-h-0 cursor-pointer flex-col overflow-hidden bg-card px-6 pb-8 pt-4 xl:col-start-4 xl:row-start-2"
+            >
+              <motion.div
                 whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => nav('/builder')}
                 className="type-label w-fit text-left text-light-secondary"
               >
-                Outfit Builder &gt;
-              </motion.button>
+                Continue Building &gt;
+              </motion.div>
               <p className="type-h3 mt-4 text-text-dark">{featuredOutfit?.name ?? 'Open builder'}</p>
               <div className="mt-3 flex flex-1 items-center justify-center overflow-hidden">
                 <BuilderStackPreview
@@ -371,46 +432,43 @@ export default function Home() {
                     if (outfit) loadOutfit(outfit)
                     nav('/builder')
                   }}
+                  interactive={false}
                 />
               </div>
-            </div>
+            </motion.div>
         </div>
       </section>
 
-      {shoeRows.length > 0 && (
-        <section className="flex min-h-[calc(100vh-96px)] snap-start flex-col justify-center bg-card py-8 md:min-h-[calc(100vh-56px)]">
-          <div className="space-y-4">
-            {shoeRows.map((row, index) => (
-              <ShoeMarqueeRow
-                key={`shoe-row-${index}`}
-                items={row}
-                direction={index % 2 === 0 ? 'left' : 'right'}
-                onItemClick={goItem}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      <section className="app-viewport shrink-0 overflow-hidden bg-card">
+        <div className="flex h-full min-h-0 flex-col justify-center gap-4 py-4">
+          {shoeRows.map((row, index) => (
+            <ShoeMarqueeRow
+              key={`shoe-row-${index}`}
+              items={row}
+              direction={index % 2 === 0 ? 'left' : 'right'}
+              onItemClick={goItem}
+            />
+          ))}
+        </div>
+      </section>
 
-      {brandRows.length > 0 && (
-        <section className="page-frame flex min-h-[calc(100vh-96px)] snap-start flex-col justify-center py-8 md:min-h-[calc(100vh-56px)]">
-          <div className="space-y-8">
-            {brandRows.map(({ brand, items: rowItems }) => (
-              <div key={brand}>
-                <button
-                  onClick={() => nav(`/closet?brand=${encodeURIComponent(brand)}`)}
-                  className="type-button-md inline-flex items-center gap-2 whitespace-nowrap button-ghost text-text-primary"
-                >
-                  {brand} <ChevronRight size={18} />
-                </button>
-                <div className="mt-4">
-                  <StoryStrip items={rowItems} onItemClick={goItem} />
-                </div>
+      <section className="page-frame app-viewport shrink-0 overflow-hidden bg-bg py-8">
+        <div className="grid h-full auto-rows-fr gap-8">
+          {brandRows.map(({ brand, items: rowItems }) => (
+            <div key={brand} className="flex min-h-0 flex-col justify-center">
+              <button
+                onClick={() => nav(`/closet?brand=${encodeURIComponent(brand)}`)}
+                className="type-button-md inline-flex w-full items-center !justify-start gap-2 whitespace-nowrap text-left button-ghost text-text-primary"
+              >
+                {brand} <ChevronRight size={16} />
+              </button>
+              <div className="mt-4 min-h-0">
+                <StoryStrip items={rowItems} onItemClick={goItem} />
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   )
 }

@@ -4,7 +4,6 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useWardrobe } from '@/hooks/useWardrobe'
 import { normalizeColorLabel } from '@/lib/colors'
 import { processImageSource, type ImageProcessingMode } from '@/lib/imageProcessing'
-import { generateMannequinImage, mannequinCategoryFromItemCategory } from '@/lib/mannequinClient'
 import { ALL_SUBTYPES, SUBTYPE_TO_CATEGORY } from '@/lib/taxonomy'
 import ProductImage from '@/components/ProductImage'
 import SizeSelector from '@/components/SizeSelector'
@@ -21,6 +20,7 @@ const mergeOptions = (...groups: (string | undefined)[][]) =>
   ).sort((a, b) => a.localeCompare(b))
 
 function getImageProcessingMode(item: WardrobeItem): ImageProcessingMode {
+  if (item.category === 'shoes') return 'shoe'
   if (item.category === 'bottoms') return 'bottoms'
   if (item.category === 'tops') {
     const subtype = item.subtype.toLowerCase()
@@ -49,6 +49,8 @@ export default function ItemDetail() {
   const [customMaterial, setCustomMaterial] = useState('')
   const [factsOpen, setFactsOpen] = useState(false)
   const [pickedImageIndex, setPickedImageIndex] = useState<number | null>(null)
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null)
+  const [dragOverImageIndex, setDragOverImageIndex] = useState<number | null>(null)
   const moreFileRef = useRef<HTMLInputElement>(null)
 
   const item = getItemById(id ?? '')
@@ -130,23 +132,10 @@ export default function ItemDetail() {
     const list = Array.from(files)
     if (list.length === 0) return
     const processingMode = getImageProcessingMode(draft)
-    const mannequinCategory = mannequinCategoryFromItemCategory(draft.category)
-    const mannequinPrompt = draft.name.trim() || draft.subtype || undefined
     const loaded = (await Promise.all(
       list.map(async (file) => {
         const raw = await readFile(file)
         if (!raw) return ''
-        if (mannequinCategory) {
-          try {
-            return await generateMannequinImage({
-              category: mannequinCategory,
-              imageDataUrl: raw,
-              prompt: mannequinPrompt,
-            })
-          } catch {
-            // Fall through to local processing on API/generation failure.
-          }
-        }
         try {
           return await processImageSource(raw, processingMode)
         } catch {
@@ -187,6 +176,23 @@ export default function ItemDetail() {
     setDraft((current) => (current ? { ...current, image: next[0], images: next.slice(1) } : current))
     setActiveImage(targetIndex)
     setPickedImageIndex(targetIndex)
+  }
+
+  const reorderImages = async (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return
+    const next = [...allImages]
+    const [picked] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, picked)
+
+    if (isEditing) {
+      setDraft((current) => (current ? { ...current, image: next[0], images: next.slice(1) } : current))
+      setPickedImageIndex(toIndex)
+      setActiveImage(toIndex)
+      return
+    }
+
+    await commitMedia(next, toIndex)
+    setPickedImageIndex(null)
   }
 
   const OptionCards = ({
@@ -487,6 +493,31 @@ export default function ItemDetail() {
                     {allImages.map((image, index) => (
                       <button
                         key={`${image}-${index}-dock`}
+                        draggable
+                        onDragStart={() => {
+                          setDraggedImageIndex(index)
+                          setDragOverImageIndex(index)
+                        }}
+                        onDragEnter={(event) => {
+                          event.preventDefault()
+                          setDragOverImageIndex(index)
+                        }}
+                        onDragOver={(event) => {
+                          event.preventDefault()
+                          setDragOverImageIndex(index)
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault()
+                          const fromIndex = draggedImageIndex
+                          if (fromIndex === null) return
+                          void reorderImages(fromIndex, index)
+                          setDraggedImageIndex(null)
+                          setDragOverImageIndex(null)
+                        }}
+                        onDragEnd={() => {
+                          setDraggedImageIndex(null)
+                          setDragOverImageIndex(null)
+                        }}
                         onClick={() => {
                           if (isEditing && pickedImageIndex !== null && pickedImageIndex !== index) {
                             movePickedImage(index)
@@ -498,12 +529,15 @@ export default function ItemDetail() {
                           setActiveImage(index)
                         }}
                         className={`media-thumb radius-md border ${
-                          pickedImageIndex === index
+                          dragOverImageIndex === index && draggedImageIndex !== null && draggedImageIndex !== index
+                            ? 'border-text-dark shadow-[0_0_0_1px_rgba(0,0,0,0.12)] bg-light-hover'
+                            : pickedImageIndex === index
                             ? 'border-light-strong shadow-[0_0_0_1px_rgba(0,0,0,0.05)] bg-light-hover'
                             : index === activeImage
                               ? 'border-light-strong shadow-[0_0_0_1px_rgba(0,0,0,0.025)]'
                               : 'border-light'
                         }`}
+                        title={index === 0 ? 'Primary display image' : 'Drag to reorder'}
                       >
                         <ProductImage src={image} alt="" className={mediaItem.category === 'shoes' ? '' : 'max-h-full max-w-full object-contain'} mode={getImageProcessingMode(mediaItem)} fit={getImageFit(mediaItem)} />
                       </button>

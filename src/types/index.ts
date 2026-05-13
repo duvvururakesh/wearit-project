@@ -20,7 +20,6 @@ export interface WardrobeItem {
   section?: string
   subcategory?: string
   detailType?: string
-  modelName?: string
   primaryColor?: string
   secondaryColor?: string
   pattern?: string
@@ -77,4 +76,26 @@ export interface OutfitScoreResult {
   score: number
   label: string
   tip: string
+}
+
+export type AppStartPage = '/' | '/closet' | '/collection' | '/builder'
+
+export interface AccountProfile {
+  displayName: string
+  username: string
+  email: string
+  location: string
+  bio: string
+}
+
+export interface AccountPreferences {
+  defaultStartPage: AppStartPage
+  compactMode: boolean
+  reduceMotion: boolean
+}
+
+export interface AccountSettings {
+  profile: AccountProfile
+  preferences: AccountPreferences
+  updatedAt: string
 }

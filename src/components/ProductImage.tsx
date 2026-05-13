@@ -17,7 +17,8 @@ interface ProductImageProps {
 export default function ProductImage({
   src, alt, className = '', draggable, loading, mode = 'strict', fit = 'default',
 }: ProductImageProps) {
-  const cacheKey = `v3:${mode}:${src}`
+  const effectiveMode: ImageProcessingMode = fit === 'shoe' ? 'shoe' : mode
+  const cacheKey = `v5:${effectiveMode}:${src}`
   const [processedSrc, setProcessedSrc] = useState<string | null>(() => cache.get(cacheKey) ?? null)
   const mountedRef = useRef(true)
 
@@ -33,7 +34,7 @@ export default function ProductImage({
   useEffect(() => {
     if (!src || cache.has(cacheKey)) return
 
-    void processImageSource(src, mode)
+    void processImageSource(src, effectiveMode)
       .then((result) => {
         cache.set(cacheKey, result)
         if (mountedRef.current) setProcessedSrc(result)
@@ -42,7 +43,7 @@ export default function ProductImage({
         cache.set(cacheKey, src)
         if (mountedRef.current) setProcessedSrc(src)
       })
-  }, [cacheKey, mode, src])
+  }, [cacheKey, effectiveMode, src])
 
   if (fit === 'shoe') {
     return (

@@ -8,6 +8,16 @@ import OccasionPicker from '@/components/OccasionPicker'
 import SaveOutfitModal from '@/components/SaveOutfitModal'
 import type { Category, Occasion, OutfitSelectionIds, WardrobeItem } from '@/types'
 
+function getImageMode(item: WardrobeItem) {
+  if (item.category === 'shoes') return 'strict' as const
+  if (item.category === 'bottoms') return 'bottoms' as const
+  const subtype = item.subtype.toLowerCase()
+  if (subtype.includes('jacket') || subtype.includes('coat') || subtype.includes('blazer')) {
+    return 'jacket' as const
+  }
+  return 'apparel' as const
+}
+
 const LAYERS: { category: Category; label: string; heightClass: string }[] = [
   { category: 'face', label: 'Accessories', heightClass: 'h-[92px]' },
   { category: 'tops', label: 'Tops', heightClass: 'h-[156px]' },
@@ -159,7 +169,7 @@ function LayerItem({
           src={item.image}
           alt={item.name}
           className={category === 'shoes' ? '' : 'max-h-full max-w-full object-contain'}
-          mode={item.subtype === 'Jackets' ? 'jacket' : category === 'shoes' ? 'strict' : 'apparel'}
+          mode={getImageMode(item)}
           fit={category === 'shoes' ? 'shoe' : 'default'}
         />
       </div>
@@ -278,12 +288,12 @@ export default function OutfitBuilder() {
   }
 
   return (
-    <div className="page-shell-dark h-[calc(100vh-96px)] overflow-hidden md:h-[calc(100vh-56px)]">
+    <div className="page-shell-workstation app-viewport app-viewport-lock">
       <div className="flex h-full flex-col">
         <div className="page-frame flex flex-shrink-0 items-center justify-between py-3">
           <div className="min-w-0">
             <p className="type-label text-text-muted">Builder</p>
-            <h1 className="type-h4 mt-1">Compose a look</h1>
+            <h1 className="type-h2 mt-1">Compose a look</h1>
           </div>
 
           <div className="hidden flex-1 justify-center px-6 lg:flex">
@@ -308,10 +318,10 @@ export default function OutfitBuilder() {
           <OccasionPicker selected={occasion} onSelect={handleOccasion} />
         </div>
 
-        <div className="relative flex-1 overflow-hidden bg-bg">
-          <div className="pointer-events-none absolute inset-y-0 left-1/2 z-0 w-[360px] -translate-x-1/2 bg-white/[0.02] blur-3xl" />
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-24 bg-gradient-to-b from-white/[0.02] to-transparent" />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-24 bg-gradient-to-t from-white/[0.02] to-transparent" />
+        <div className="relative flex-1 overflow-hidden bg-card">
+          <div className="pointer-events-none absolute inset-y-0 left-1/2 z-0 w-[360px] -translate-x-1/2 bg-black/[0.03] blur-3xl" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-24 bg-gradient-to-b from-black/[0.03] to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-24 bg-gradient-to-t from-black/[0.03] to-transparent" />
           <div className="page-frame flex h-full flex-col">
             <div className="relative z-10 flex flex-1 flex-col justify-center gap-6">
               {LAYERS.map(({ category, heightClass }) => (
@@ -319,18 +329,18 @@ export default function OutfitBuilder() {
                   <button
                     onClick={() => moveLayer(category, -1)}
                     disabled={orderedItemsByCategory[category].length <= 1}
-                    className="button-icon absolute left-0 top-1/2 z-20 -translate-y-1/2 text-white/80 disabled:opacity-20"
-                    aria-label={`Previous ${category}`}
-                  >
-                    <ChevronLeft size={34} strokeWidth={1.6} />
+                  className="button-icon absolute left-0 top-1/2 z-20 -translate-y-1/2 text-light-secondary disabled:opacity-20"
+                  aria-label={`Previous ${category}`}
+                >
+                    <ChevronLeft size={20} strokeWidth={1.75} />
                   </button>
                   <button
                     onClick={() => moveLayer(category, 1)}
                     disabled={orderedItemsByCategory[category].length <= 1}
-                    className="button-icon absolute right-0 top-1/2 z-20 -translate-y-1/2 text-white/80 disabled:opacity-20"
-                    aria-label={`Next ${category}`}
-                  >
-                    <ChevronRight size={34} strokeWidth={1.6} />
+                  className="button-icon absolute right-0 top-1/2 z-20 -translate-y-1/2 text-light-secondary disabled:opacity-20"
+                  aria-label={`Next ${category}`}
+                >
+                    <ChevronRight size={20} strokeWidth={1.75} />
                   </button>
                   <LayerCarousel
                     category={category}
@@ -348,24 +358,24 @@ export default function OutfitBuilder() {
 
             <div className="flex items-end justify-between py-3">
               <div className="min-w-0">
-                <p className="type-caption text-text-primary">{selectedFocused?.name ?? 'No item selected'}</p>
-                <p className="type-caption mt-1 text-text-muted">
+                <p className="type-caption text-text-dark">{selectedFocused?.name ?? 'No item selected'}</p>
+                <p className="type-caption mt-1 text-light-secondary">
                   {selectedFocused ? `${selectedFocused.brand} / ${selectedFocused.subtype}` : 'Swipe any layer to build the look'}
                 </p>
               </div>
               <div className="flex items-center gap-4">
-                {showScore && <span className="badge-neutral-dark">{score.score}/100</span>}
+                {showScore && <span className="badge-neutral-light">{score.score}/100</span>}
                 {selectedFocused && (
                   <>
-                    <button onClick={() => nav(`/item/${selectedFocused.id}`)} className="type-button-sm button-ghost text-text-muted">
+                    <button onClick={() => nav(`/item/${selectedFocused.id}`)} className="type-button-sm button-ghost text-light-secondary">
                       View Item
                     </button>
-                    <button onClick={clearFocusedLayer} className="type-button-sm button-ghost text-text-muted">
+                    <button onClick={clearFocusedLayer} className="type-button-sm button-ghost text-light-secondary">
                       Clear Layer
                     </button>
                   </>
                 )}
-                {isDirty && <span className="type-caption text-text-muted">Draft</span>}
+                {isDirty && <span className="type-caption text-light-secondary">Draft</span>}
               </div>
             </div>
           </div>

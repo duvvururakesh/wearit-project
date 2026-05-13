@@ -1,6 +1,19 @@
-export type ImageProcessingMode = 'strict' | 'apparel' | 'jacket'
+export type ImageProcessingMode = 'strict' | 'apparel' | 'jacket' | 'bottoms' | 'shoe'
 
-function trimTransparentBounds(canvas: HTMLCanvasElement): string {
+type TrimPadding = {
+  padXRatio: number
+  padTopRatio: number
+  padBottomRatio: number
+}
+
+function trimTransparentBounds(
+  canvas: HTMLCanvasElement,
+  {
+    padXRatio = 0.04,
+    padTopRatio = 0.03,
+    padBottomRatio = 0.03,
+  }: Partial<TrimPadding> = {},
+): string {
   const ctx = canvas.getContext('2d', { willReadFrequently: true })!
   const { width, height } = canvas
   const imageData = ctx.getImageData(0, 0, width, height)
@@ -26,12 +39,13 @@ function trimTransparentBounds(canvas: HTMLCanvasElement): string {
     return canvas.toDataURL('image/png')
   }
 
-  const padX = Math.round(width * 0.04)
-  const padY = Math.round(height * 0.03)
+  const padX = Math.round(width * padXRatio)
+  const padTop = Math.round(height * padTopRatio)
+  const padBottom = Math.round(height * padBottomRatio)
   const cropX = Math.max(0, minX - padX)
-  const cropY = Math.max(0, minY - padY)
+  const cropY = Math.max(0, minY - padTop)
   const cropW = Math.min(width - cropX, maxX - minX + padX * 2)
-  const cropH = Math.min(height - cropY, maxY - minY + padY * 2)
+  const cropH = Math.min(height - cropY, maxY - minY + padTop + padBottom)
 
   const out = document.createElement('canvas')
   out.width = cropW
@@ -41,38 +55,20 @@ function trimTransparentBounds(canvas: HTMLCanvasElement): string {
 }
 
 function isolateJacket(canvas: HTMLCanvasElement): string {
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })!
-  const { width: w, height: h } = canvas
-  const imageData = ctx.getImageData(0, 0, w, h)
-  const { data } = imageData
-
-  const topCut = Math.floor(h * 0.17)
-  const bottomCut = Math.floor(h * 0.73)
-  const leftCut = Math.floor(w * 0.12)
-  const rightCut = Math.floor(w * 0.88)
-
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (y < topCut || y > bottomCut || x < leftCut || x > rightCut) {
-        data[(y * w + x) * 4 + 3] = 0
-      }
-    }
-  }
-
-  const handBandTop = Math.floor(h * 0.54)
-  const handBandBottom = Math.floor(h * 0.9)
-  const handBandInset = Math.floor(w * 0.2)
-
-  for (let y = handBandTop; y < handBandBottom; y++) {
-    for (let x = 0; x < w; x++) {
-      if (x < handBandInset || x > w - handBandInset) {
-        data[(y * w + x) * 4 + 3] = 0
-      }
-    }
-  }
-
-  ctx.putImageData(imageData, 0, 0)
   return trimTransparentBounds(canvas)
+}
+
+function isolateBottoms(canvas: HTMLCanvasElement): string {
+  return trimTransparentBounds(canvas)
+}
+
+function isolateShoe(canvas: HTMLCanvasElement): string {
+  // Floor-lock shoes by removing bottom transparent padding, while keeping modest side/top breathing space.
+  return trimTransparentBounds(canvas, {
+    padXRatio: 0.02,
+    padTopRatio: 0.02,
+    padBottomRatio: 0,
+  })
 }
 
 function removeDetachedBottomShadow(canvas: HTMLCanvasElement) {
@@ -162,7 +158,7 @@ function processCanvas(img: HTMLImageElement, mode: ImageProcessingMode): string
   const imageData = ctx.getImageData(0, 0, w, h)
   const { data } = imageData
 
-  const apparelLike = mode === 'apparel' || mode === 'jacket'
+  const apparelLike = mode === 'apparel' || mode === 'jacket' || mode === 'bottoms'
   const threshold = apparelLike ? 242 : 248
 
   const isLight = (idx: number) => data[idx] > threshold && data[idx + 1] > threshold && data[idx + 2] > threshold
@@ -210,39 +206,12 @@ function processCanvas(img: HTMLImageElement, mode: ImageProcessingMode): string
     }
   }
 
-  if (apparelLike) {
-    for (let i = 0; i < w * h; i++) {
-      if (data[i * 4 + 3] === 0) continue
-
-      const px = i % w
-      const py = Math.floor(i / w)
-      const neighbors = [
-        px > 0 ? i - 1 : -1,
-        px < w - 1 ? i + 1 : -1,
-        py > 0 ? i - w : -1,
-        py < h - 1 ? i + w : -1,
-      ]
-
-      let hasTransparentNeighbor = false
-      for (const neighbor of neighbors) {
-        if (neighbor >= 0 && data[neighbor * 4 + 3] === 0) {
-          hasTransparentNeighbor = true
-          break
-        }
-      }
-
-      if (!hasTransparentNeighbor) continue
-
-      const idx = i * 4
-      const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3
-      if (brightness > 246) data[idx + 3] = 0
-    }
-  }
-
   ctx.putImageData(imageData, 0, 0)
   removeDetachedBottomShadow(canvas)
 
+  if (mode === 'shoe') return isolateShoe(canvas)
   if (mode === 'jacket') return isolateJacket(canvas)
+  if (mode === 'bottoms') return isolateBottoms(canvas)
   return trimTransparentBounds(canvas)
 }
 

@@ -1,9 +1,10 @@
-import type { WardrobeItem } from '@/types'
+import type { OutfitCombo, WardrobeItem } from '@/types'
 
 const DB_NAME = 'wearit-db'
 const DB_VERSION = 1
 const STORE_NAME = 'app'
 const ITEMS_KEY = 'wardrobe-items'
+const OUTFITS_KEY = 'saved-outfits'
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -43,6 +44,33 @@ export async function saveWardrobeItems(items: WardrobeItem[]) {
     const tx = db.transaction(STORE_NAME, 'readwrite')
     const store = tx.objectStore(STORE_NAME)
     store.put(items, ITEMS_KEY)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+}
+
+export async function loadSavedOutfits(): Promise<OutfitCombo[] | null> {
+  if (typeof indexedDB === 'undefined') return null
+
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly')
+    const store = tx.objectStore(STORE_NAME)
+    const request = store.get(OUTFITS_KEY)
+
+    request.onsuccess = () => resolve((request.result as OutfitCombo[] | undefined) ?? null)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+export async function saveSavedOutfits(outfits: OutfitCombo[]) {
+  if (typeof indexedDB === 'undefined') return
+
+  const db = await openDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    const store = tx.objectStore(STORE_NAME)
+    store.put(outfits, OUTFITS_KEY)
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error)
   })

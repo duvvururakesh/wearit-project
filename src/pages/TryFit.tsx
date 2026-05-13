@@ -8,6 +8,16 @@ import OutfitScore from '@/components/OutfitScore'
 import ProductImage from '@/components/ProductImage'
 import type { Category, Occasion } from '@/types'
 
+function getImageMode(category: Category, subtype: string) {
+  if (category === 'shoes') return 'strict' as const
+  if (category === 'bottoms') return 'bottoms' as const
+  const normalizedSubtype = subtype.toLowerCase()
+  if (normalizedSubtype.includes('jacket') || normalizedSubtype.includes('coat') || normalizedSubtype.includes('blazer')) {
+    return 'jacket' as const
+  }
+  return 'apparel' as const
+}
+
 const LAYERS: { category: Category; label: string }[] = [
   { category: 'face', label: 'Accessories' },
   { category: 'tops', label: 'Tops' },
@@ -49,7 +59,7 @@ export default function TryFit() {
   const score = getScoreForSelection()
 
   return (
-    <div className="page-shell-dark">
+    <div className="page-shell-dark app-viewport app-viewport-scroll">
       <header className="page-header">
         <div className="page-frame page-header-inner">
           <div className="page-header-copy">
@@ -88,7 +98,7 @@ export default function TryFit() {
                   className="media-canvas card-selection-thumb cursor-pointer"
                   onClick={() => item && nav(`/item/${item.id}`)}
                 >
-                  {item && <ProductImage src={item.image} alt={item.name} className={item.category === 'shoes' ? '' : 'h-full w-full object-contain'} mode={item.category === 'shoes' ? 'strict' : 'apparel'} fit={item.category === 'shoes' ? 'shoe' : 'default'} />}
+                  {item && <ProductImage src={item.image} alt={item.name} className={item.category === 'shoes' ? '' : 'h-full w-full object-contain'} mode={getImageMode(item.category, item.subtype)} fit={item.category === 'shoes' ? 'shoe' : 'default'} />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="type-label text-text-muted">{label}</p>
@@ -148,7 +158,7 @@ export default function TryFit() {
         <div className="mt-8">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles size={14} className="text-gold" />
-            <h3 className="type-label text-text-muted">
+            <h3 className="type-h4 text-text-primary">
               Older Pieces
             </h3>
           </div>
@@ -176,7 +186,7 @@ function UnderusedItems() {
           className="card-product-micro group"
         >
           <div className="media-canvas card-product-micro-media group-hover:bg-surface transition-colors">
-            <ProductImage src={item.image} alt={item.name} className={item.category === 'shoes' ? '' : 'h-full w-full object-contain'} mode={item.category === 'shoes' ? 'strict' : 'apparel'} fit={item.category === 'shoes' ? 'shoe' : 'default'} />
+            <ProductImage src={item.image} alt={item.name} className={item.category === 'shoes' ? '' : 'h-full w-full object-contain'} mode={getImageMode(item.category, item.subtype)} fit={item.category === 'shoes' ? 'shoe' : 'default'} />
           </div>
           <div className="card-product-micro-body">
             <p className="type-caption truncate text-text-secondary">{item.name}</p>

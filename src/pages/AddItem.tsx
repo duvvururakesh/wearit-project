@@ -27,15 +27,11 @@ import {
   WATCH_MOVEMENT_OPTIONS,
 } from '@/lib/taxonomy'
 import { processImageSource, type ImageProcessingMode } from '@/lib/imageProcessing'
-import { generateMannequinImage, mannequinCategoryFromRoot } from '@/lib/mannequinClient'
 import ProductImage from '@/components/ProductImage'
 import SizeSelector from '@/components/SizeSelector'
 import type { Category } from '@/types'
 
 type RootCategory = 'apparel' | 'shoes' | 'accessories'
-
-const STUDIO_3D_PROMPT =
-  "Transform this photo into a photorealistic studio shot in the 1:1 aspect ratio, reconstructed as a high-volume 3D form as if worn by a male invisible body, captured from a front perspective. Preserve every original product detail exactly as shown: all colors, patterns, logos, stitching, textures, fabric types, seams, labels, and design elements must remain completely unchanged with nothing added or removed. The fabric is stretched taut across the chest, shoulders, and limbs, showing clear structural tension and smooth, rounded anatomical curves appropriate to the body type. Fine surface wrinkles are reduced but original details are preserved, replaced by a sleek, filled-out appearance with only deep, natural folds at the joints to emphasize the internal natural mass. Maintain the exact same garment version without any alterations to its original design or features. Keep the original fabric texture and detail in high fidelity. The item is isolated against a seamless white studio background with soft global illumination that highlights the smooth, volumetric surfaces and casts a soft contact shadow beneath."
 
 const mergeOptions = (...groups: (string | undefined)[][]) =>
   Array.from(
@@ -99,10 +95,8 @@ function normalizeSingleColor(value: string) {
 }
 
 function getImageProcessingMode(root: RootCategory, section: string): ImageProcessingMode {
-  if (root === 'apparel') {
-    if (section === 'Bottoms') return 'bottoms'
-    return section === 'Outerwear' ? 'jacket' : 'apparel'
-  }
+  if (root === 'shoes') return 'shoe'
+  void section
   return 'strict'
 }
 
@@ -284,7 +278,6 @@ export default function AddItem() {
   const [preview, setPreview] = useState<string | null>(null)
   const [extraPreviews, setExtraPreviews] = useState<string[]>([])
   const [processing, setProcessing] = useState(false)
-  const [useStudio3DPrompt, setUseStudio3DPrompt] = useState(true)
 
   const [name, setName] = useState('')
   const [brand, setBrand] = useState('')
@@ -373,24 +366,10 @@ export default function AddItem() {
     if (list.length === 0) return
     setProcessing(true)
     const processingMode = getImageProcessingMode(root, section)
-    const mannequinCategory = mannequinCategoryFromRoot(root, section)
-    const fallbackPrompt = detailType || subcategory || name.trim() || undefined
-    const mannequinPrompt = useStudio3DPrompt ? STUDIO_3D_PROMPT : fallbackPrompt
     const loaded = (await Promise.all(
       list.map(async (file) => {
         const raw = await readFile(file)
         if (!raw) return ''
-        if (mannequinCategory) {
-          try {
-            return await generateMannequinImage({
-              category: mannequinCategory,
-              imageDataUrl: raw,
-              prompt: mannequinPrompt,
-            })
-          } catch {
-            // If backend is unavailable or generation fails, keep existing local processing behavior.
-          }
-        }
         try {
           return await processImageSource(raw, processingMode)
         } catch {
@@ -521,8 +500,8 @@ export default function AddItem() {
                 Home
               </button>
               <span className="type-caption text-light-muted">/</span>
-              <button onClick={() => nav('/add')} className="type-button-sm button-ghost text-light-secondary">
-                Add Item
+              <button onClick={() => nav('/upload')} className="type-button-sm button-ghost text-light-secondary">
+                Upload
               </button>
             </div>
 
@@ -580,18 +559,6 @@ export default function AddItem() {
                       Add More
                     </button>
                   </div>
-                </div>
-
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <p className="type-caption text-light-secondary">Make it 3D?</p>
-                  <button
-                    type="button"
-                    onClick={() => setUseStudio3DPrompt((current) => !current)}
-                    className={`type-button-sm option-card-light ${useStudio3DPrompt ? 'is-selected' : ''}`}
-                    aria-pressed={useStudio3DPrompt}
-                  >
-                    {useStudio3DPrompt ? 'On' : 'Off'}
-                  </button>
                 </div>
 
                 <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
